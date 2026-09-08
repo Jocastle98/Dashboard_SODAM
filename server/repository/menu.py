@@ -19,6 +19,19 @@ SORT_ORDERS = {
 
 def ranking(session: Session, store_id: int,
             date_from: str, date_to: str, limit: int, sort_by: str) -> list[Row]:
+    """
+    메뉴 순위 (FN-250).
+
+    **매출이 0원인 항목은 제외한다.** POS 의 `menu_sales` 에는 판매 메뉴 말고도
+    옵션 항목이 섞여 있다 — 인원 구분(`성인`/`초등학생`), 육수 선택(`순한맛(육수)`,
+    `반반`), 고기 종류(`목심`), 추가(`(써)고기추가(...)`). 수량은 잡히지만 매출이 0원이다.
+
+    빼지 않으면 **수량순 1위가 `성인` 1,874개(0원)** 가 되어 사장님이 메뉴 순위로
+    읽을 수 없다. "메뉴별 매출" 위젯이므로 매출이 발생한 메뉴만 센다.
+
+    옵션 자체의 비율(예: 육수 선택 분포)은 별도 분석 주제이며 이 위젯의 일이 아니다.
+    `total_sales` 는 그대로 둔다 — 옵션은 0원이라 비중 분모에 영향이 없다.
+    """
     order_by = SORT_ORDERS.get(sort_by, SORT_ORDERS["sales"])
     return session.execute(
         f"""
@@ -29,6 +42,7 @@ def ranking(session: Session, store_id: int,
         JOIN menus m ON m.menu_id = ms.menu_id
         WHERE ms.store_id = ? AND ms.biz_date BETWEEN ? AND ?
         GROUP BY m.menu_id
+        HAVING SUM(ms.sales_amount) > 0
         ORDER BY {order_by}
         LIMIT ?
         """,

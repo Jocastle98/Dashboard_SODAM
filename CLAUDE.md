@@ -264,11 +264,19 @@ python -m pytest tests/ -q                  # 테스트
       · 화면 체감 ~166ms (API 7개 병렬) / 정적 파일 CDN HIT 27ms
       · 로그인·KPI·요일비교·메뉴별칭 전부 프로덕션에서 값 일치 확인
       · 바로가기 HTML 생성 → `dist/소담촌마곡점_대시보드_바로가기.html`
-- [ ] **← 현재: STEP 7-3 — 자동 수집 연결**
-      · GitHub Actions Secrets 등록 + 워크플로 커밋·푸시 (아직 한 번도 안 돌았다)
-      · Vercel 에 `DISPATCH_REPO`/`DISPATCH_TOKEN` 등록 → 「지금 수집」 버튼 활성화
-      · 현재 `/api/system/collect/status` 는 `backend=none`, 버튼은 숨겨져 있다
-      · 데이터가 2026-08-16 까지라 갱신 배지가 `failed` 로 보인다 (수집이 붙으면 해소)
+- [x] STEP 7-3 — **자동 수집 연결 완료** (2026-09-09)
+      · 워크플로를 `main` 에 병합 → GitHub 이 `collect` 인식 (`state=active`)
+      · Actions Secrets 7개 등록. `ALERT_WEBHOOK_URL` 은 비어 있어 제외
+      · `Run workflow` 1회 성공 (42초) — **`TZ: Asia/Seoul` 검증됨**:
+        수집 대상이 `20260908`(KST 전일)로 정확. TZ 없으면 하루 밀렸을 것
+      · 실제 POS 응답으로 PostgreSQL 적재 검증 (그전엔 SQLite 이관분만 검증)
+      · 수집 공백 8/17~9/7 22일 백필 완료 (주문 742건, POS 요청 26회)
+      · 프로덕션 배지 `failed` → **`ok`**, 미수집일 0
+- [ ] **← 현재: 「지금 수집」 버튼만 남음**
+      Vercel 에 `DISPATCH_TOKEN`(GitHub PAT) 등록하면 끝. `DISPATCH_REPO` 는 등록됨.
+      **버튼 없이도 매일 04시 자동 수집은 이미 동작한다** — 급하지 않다.
+      PAT: Settings → Developer settings → Fine-grained token,
+      저장소는 `Dashboard_SODAM` 만, 권한은 **Actions: Read and write 하나만**
       Fly.io 무료 폐지로 방향 전환. 수집=GitHub Actions / DB=Neon / 화면=Vercel
       아래 「다음 세션 시작점」의 "지금 할 일" 순서대로 — **PostgreSQL 이식부터**
 - [ ] 세부 기능: 이동평균·히트맵 토글, CSV 내보내기(FN-264),
@@ -296,18 +304,19 @@ Fly.io는 2024-10부터 신규 계정 무료 허용량이 폐지됐다(최소 �
 **"접속 시 갱신"은 채택하지 않았다** — 사장님이 POS 응답을 기다려야 하고, 탭을 여러 개
 열면 POS에 동시 요청이 가서 「POS 서버 배려」 규칙을 어긴다.
 
-### ⚠ 최우선 — public 저장소에 실매출이 공개돼 있다
+### 실매출 수치 — 문서에서 예시값으로 치환 완료 (2026-09-09)
 
-사용자가 public 유지를 선택했다(2026-08-18). 그러나 아래는 **사장님 영업 기밀**이다.
+저장소는 public 이다(`private: False` 확인). `docs/03`·`docs/05` 에 있던 일별 실매출·
+결제수단·12개월 총매출을 **예시값으로 바꾸거나 문구로 대체**했다.
+검증의 논지(합계 일치, 2년 소급 가능)는 수치 없이도 성립하므로 그대로 남겼다.
 
-| 위치 | 내용 |
-|---|---|
-| `docs/05_DB스키마_확정안.md:403` | 총 매출 943,159,900원 / 주문 16,116건 / 객단가 58,523원 |
-| `docs/03_POS_분석결과.md:205-206, 249-250, 338-340` | 일별 실매출·결제수단 실측치 |
+**앞으로 문서에 실제 매출 수치를 적지 않는다.** 현황은 `--status` 로 확인한다.
 
-**세션 시작 시 이 수치를 예시값으로 치환할지 먼저 물을 것.** 히스토리까지 지우려면
-force push가 필요하고, 이미 공개된 값은 캐시에 남을 수 있다는 점도 함께 알린다.
-`.env`·`*.db`·`data/`·`dist/`는 **한 번도 커밋된 적 없다** (2026-08-18 전체 히스토리 검사 완료).
+⚠ **이미 공개된 값은 git 히스토리와 GitHub 캐시·포크에 남아 있다.** 완전한 회수는
+불가능하다. 지우려면 히스토리 재작성(force push)이 필요하고, 그래도 캐시는 남을 수 있다.
+필요하면 저장소를 private 으로 전환하는 편이 확실하다.
+
+`.env`·`.env.neon`·`*.db`·`data/`·`dist/`는 **한 번도 커밋된 적 없다**.
 
 ### 지금 할 일 (이 순서 그대로)
 
@@ -323,7 +332,7 @@ force push가 필요하고, 이미 공개된 값은 캐시에 남을 수 있다�
 | 7 | FastAPI → Vercel 함수 + `vercel.json` | Claude | ✅ 파일 준비 완료 (배포는 미실행) |
 | 8 | `docs/06` 요금 정보 수정 (Fly.io 무료 폐지 반영) | Claude | ✅ |
 | 9 | `vercel login` → 환경변수 → `vercel --prod` | 둘 다 | ✅ 2026-09-09 |
-| 10 | Actions Secrets 등록 + `Run workflow` 1회 검증 | 둘 다 | ⬜ |
+| 10 | Actions Secrets + `Run workflow` 1회 검증 | 둘 다 | ✅ 2026-09-09 |
 | 11 | `DASHBOARD_URL` + 바로가기 HTML 생성 | Claude | ✅ 2026-09-09 |
 
 **6번은 파일만 만들어 뒀고 아직 한 번도 돌지 않았다.** Neon(`DATABASE_URL`)과
@@ -467,6 +476,10 @@ python -m collector.main --backfill
 - 중첩표 2배 — `parse/tables.py`가 표 선택 + 중복 제거 2겹으로 방어
 - 시간대 데이터 — `timeAnal` 수집 불필요. 주문의 `sold_at`에서 유도
 - **호스팅 비교** — 2026-08-18 결론. Fly.io 유료화, Vercel 단독은 10초 제한으로 불가
+- **Actions `schedule` 은 기본 브랜치에서만 돈다** — 워크플로가 `v1.0.x` 에만 있으면
+  GitHub 이 워크플로를 아예 인식하지 않는다(`total_count: 0`). `main` 에 병합해야 한다
+- **Actions 요금** — public 저장소 + 기본 러너는 무료(분 제한 없음). 공식 문서 확인.
+  private 으로 바꾸면 월 2,000분 한도가 생긴다 (우리 수집은 월 60분 수준)
 - **`collector/scheduler.py` (APScheduler)** — Vercel엔 상주 프로세스가 없어 배포 경로로
   쓰지 않는다. 로컬·자체 서버용으로 남겨두고, 배포 스케줄은 GitHub Actions가 담당한다
 

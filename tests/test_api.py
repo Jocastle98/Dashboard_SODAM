@@ -264,6 +264,40 @@ def test_menu_ranking_applies_display_aliases(auth_client):
         assert by_code[code] == alias
 
 
+def test_menu_ranking_excludes_zero_revenue_options(auth_client):
+    """
+    POS 의 menu_sales 에는 판매 메뉴 말고 옵션 항목이 섞여 있다 —
+    인원 구분(`성인`), 육수 선택(`반반`, `순한맛(육수)`), 고기 종류(`목심`), 추가.
+    수량은 잡히지만 매출이 0원이라, 빼지 않으면 **수량순 1위가 `성인`(0원)** 이 된다.
+    """
+    for sort_by in ("sales", "quantity"):
+        data = auth_client.get(
+            f"/api/menu/ranking?{PERIOD}&sortBy={sort_by}&limit=100").json()["data"]
+        assert data, f"{sort_by} 정렬에 결과가 없습니다"
+        assert all(row["sales"] > 0 for row in data),             f"{sort_by} 정렬에 매출 0원 항목이 섞였습니다"
+
+
+def test_menu_ranking_by_quantity_shows_real_menu_names(auth_client):
+    """수량순에도 옵션 이름(`성인` 등)이 아니라 메뉴명만 나와야 한다."""
+    data = auth_client.get(f"/api/menu/ranking?{PERIOD}&sortBy=quantity&limit=100").json()["data"]
+    option_names = {"성인", "초등학생", "반반", "목심", "순한맛(육수)", "반반(육수)"}
+    leaked = [row["menuName"] for row in data if row["menuName"] in option_names]
+    assert not leaked, f"옵션 항목이 순위에 남아 있습니다: {leaked}"
+
+
+def test_same_named_menus_get_distinct_display_names(auth_client):
+    """
+    `초등학생(70g)` 은 메뉴코드가 다른 두 메뉴가 같은 이름을 쓴다(점심특선/월남쌈샤브샤브).
+    별칭이 메뉴코드 기준이므로 표에서 두 줄이 서로 구분돼야 한다.
+    """
+    from server.service.menu_alias import ALIASES
+
+    data = auth_client.get(f"/api/menu/ranking?{PERIOD}&limit=100").json()["data"]
+    names = [row["menuName"] for row in data
+             if row["menuCode"] in ALIASES]
+    assert len(names) == len(set(names)), f"표시명이 겹칩니다: {names}"
+
+
 # ── 시스템 ─────────────────────────────────────────────────
 
 def test_status_reports_data_range(auth_client):

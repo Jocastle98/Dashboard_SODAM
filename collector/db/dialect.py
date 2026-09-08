@@ -11,7 +11,8 @@ SQLite(로컬 개발·오프라인 스냅샷)와 PostgreSQL(Neon 배포)을 같�
 
 | | SQLite | PostgreSQL |
 |---|---|---|
-| 자리표시자 | `?` | `%s` |
+| 자리표시자 | `?` | `%s` (리터럴 밖만) |
+| 리터럴 `%` | 그대로 | `%%` 로 escape (리터럴 안까지) |
 | 불리언 | `0` / `1` | `FALSE` / `TRUE` |
 | 요일 번호 | `strftime('%w', d)` | `EXTRACT(DOW FROM d::date)` |
 | 여러 문장 실행 | `executescript()` | `execute()` (파라미터 없을 때) |
@@ -74,9 +75,15 @@ class Dialect:
         """
         SQL의 자리표시자를 이 방언에 맞게 바꾼다.
 
-        `?`를 그대로 두는 SQLite에서는 아무것도 하지 않는다. PostgreSQL에서는
-        **문자열 리터럴 밖의 `?`만** `%s`로 바꾸고, 원래 있던 `%`는 `%%`로 escape한다
-        (psycopg가 `%`를 자기 자리표시자로 읽기 때문).
+        `?`를 그대로 두는 SQLite에서는 아무것도 하지 않는다. PostgreSQL에서는:
+
+          · `?` → `%s` — **문자열 리터럴 밖에서만.** 리터럴 안의 `?`는 데이터다.
+          · `%` → `%%` — **어디서든, 리터럴 안까지.**
+
+        `%`를 리터럴 안에서도 바꾸는 이유: **psycopg는 SQL 문자열 리터럴을 해석하지 않는다.**
+        `LIKE '%김%'` 을 그대로 넘기면 `%김` 을 자리표시자로 읽으려다 깨진다
+        (`UnicodeDecodeError` 로 터진다). 반면 `?`는 psycopg가 특별하게 보지 않으므로
+        리터럴 안의 것은 남겨 두어야 한다. 두 규칙의 적용 범위가 다르다.
         """
         if not self.is_postgres:
             return sql
@@ -117,10 +124,10 @@ def detect(database_url: str) -> Dialect:
 
 def _to_pyformat(sql: str) -> str:
     """
-    `?` → `%s`, `%` → `%%`. 단 **단일 인용부호 안은 건드리지 않는다.**
+    `?` → `%s` (문자열 리터럴 밖에서만), `%` → `%%` (어디서든).
 
-    SQL 문자열 리터럴에 `?`나 `%`가 들어 있을 수 있다(예: `LIKE '%김%'`).
-    통째로 replace하면 그것까지 망가진다.
+    적용 범위가 다른 이유는 `Dialect.bind()` 주석에 있다 — psycopg 는 SQL 문자열
+    리터럴을 해석하지 않으므로 `LIKE '%김%'` 의 `%` 도 escape 해야 한다.
     """
     out: list[str] = []
     in_string = False
@@ -128,6 +135,11 @@ def _to_pyformat(sql: str) -> str:
 
     while index < len(sql):
         char = sql[index]
+
+        if char == "%":
+            out.append("%%")            # 리터럴 안이든 밖이든 escape
+            index += 1
+            continue
 
         if in_string:
             out.append(char)
@@ -145,9 +157,7 @@ def _to_pyformat(sql: str) -> str:
             in_string = True
             out.append(char)
         elif char == "?":
-            out.append("%s")
-        elif char == "%":
-            out.append("%%")
+            out.append("%s")            # 리터럴 밖의 것만 자리표시자
         else:
             out.append(char)
         index += 1
