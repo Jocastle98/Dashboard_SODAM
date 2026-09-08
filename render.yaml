@@ -1,0 +1,41 @@
+# Render 배포 설정 (https://render.com)
+#
+# ⚠ 영속 디스크(disk)는 유료 플랜에서만 제공된다.
+#   무료 플랜으로 띄우면 재배포·슬립마다 data/ 가 사라져 매번 12개월을 다시 수집하게 된다.
+#   POS에 부담을 주므로 무료 플랜에서는 SCHEDULER_ENABLED=false 로 두고
+#   docs/06_배포가이드.md 의 대안을 검토할 것.
+
+services:
+  - type: web
+    name: sodam-dashboard
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    region: singapore          # 한국에서 가장 가까운 리전
+    plan: starter              # 영속 디스크가 필요하므로 무료(free)가 아님
+    healthCheckPath: /
+    disk:
+      name: sodam-data
+      mountPath: /app/data     # SQLite와 원본 HTML이 여기 쌓인다
+      sizeGB: 1
+    envVars:
+      - key: TZ
+        value: Asia/Seoul
+      - key: SCHEDULER_ENABLED
+        value: "true"
+      - key: DATABASE_URL
+        value: sqlite:////app/data/sodam.db
+      # 아래는 Render 대시보드에서 직접 입력한다. 여기에 값을 적지 말 것.
+      - key: POS_USER_ID
+        sync: false
+      - key: POS_USER_PW
+        sync: false
+      - key: POS_BRANCH
+        sync: false
+      - key: DASHBOARD_ADMIN_ID
+        sync: false
+      - key: DASHBOARD_ADMIN_PW
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: ALERT_WEBHOOK_URL
+        sync: false

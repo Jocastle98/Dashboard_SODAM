@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>소담촌 마곡점 · 매출 대시보드</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <!-- SCR-01 로그인 -->
+  <div class="login-wrap">
+    <div class="login-card">
+      <div class="login-title">
+        <span class="emoji">🍲</span>
+        <h1>소담촌 마곡점</h1>
+        <p>매출 분석 대시보드</p>
+      </div>
+
+      <form id="login-form" autocomplete="on">
+        <!-- FN-101 폼 렌더링 -->
+        <div class="field">
+          <input id="username" name="username" type="text" placeholder="아이디"
+                 autocomplete="username" required>
+        </div>
+        <div class="field">
+          <input id="password" name="password" type="password" placeholder="비밀번호"
+                 autocomplete="current-password" required>
+          <!-- 비밀번호 표시 토글 -->
+          <button type="button" class="toggle" id="toggle-password"
+                  aria-label="비밀번호 표시">👁</button>
+        </div>
+
+        <!-- FN-107 로그인 상태 유지 (최대 30일) -->
+        <label class="checkbox">
+          <input type="checkbox" id="remember"> 로그인 상태 유지
+        </label>
+
+        <!-- FN-102 공백 시 비활성화 -->
+        <button type="submit" class="btn-primary" id="submit" disabled>로그인</button>
+
+        <!-- FN-105 실패 / FN-106 잠금 안내 -->
+        <div class="form-message" id="message" role="alert"></div>
+      </form>
+
+      <div class="login-footer">powered by 소상공인 AI 빅데이터</div>
+    </div>
+  </div>
+
+  <script type="module" src="/js/login.js"></script>
+</body>
+</html>

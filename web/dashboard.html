@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>소담촌 마곡점 · 매출 대시보드</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <!-- CDN을 쓰지 않는다. 매장 네트워크가 CDN을 막아도 열려야 하고,
+       단일 HTML 내보내기에서 그대로 인라인되어야 한다. -->
+  <script src="/vendor/chart.umd.min.js"></script>
+</head>
+<body>
+  <!-- SCR-02 메인 대시보드 -->
+  <header class="header">
+    <div class="header-row">
+      <div class="brand">🍲 <span id="store-name">소담촌 마곡점</span></div>
+      <div class="spacer"></div>
+      <!-- FN-203 갱신 상태 배지 -->
+      <span class="badge" id="status-badge"><span class="dot"></span><span data-text>확인 중…</span></span>
+      <!-- FN-205 수동 수집 — 서버가 트리거 수단이 없다고 하면 스스로 숨는다 -->
+      <span class="collect-wrap" id="collect-wrap">
+        <span class="hint" id="collect-message"></span>
+        <button class="btn-ghost" id="collect-now" hidden>지금 수집</button>
+      </span>
+      <!-- FN-204 로그아웃 -->
+      <button class="btn-ghost" id="logout">로그아웃</button>
+    </div>
+
+    <!-- FN-201 기간 필터 / FN-202 직접 지정 -->
+    <div class="filters">
+      <button class="chip" data-preset="today">어제</button>
+      <button class="chip active" data-preset="week">최근 7일</button>
+      <button class="chip" data-preset="month">최근 30일</button>
+      <button class="chip" data-preset="mtd">이번 달</button>
+      <button class="chip" data-preset="custom">직접 지정</button>
+      <span class="range-inputs" id="custom-range">
+        <input type="date" id="range-from"> ~ <input type="date" id="range-to">
+        <button class="chip" id="apply-range">조회</button>
+      </span>
+    </div>
+  </header>
+
+  <main>
+    <div class="card-head" style="margin-bottom:10px">
+      <span class="hint" id="period-meta"></span>
+      <div class="spacer"></div>
+      <span class="hint" id="data-range"></span>
+    </div>
+
+    <!-- KPI 카드 (FN-210) -->
+    <section id="kpi">
+      <div class="kpi-grid" data-body></div>
+      <div data-state class="state"></div>
+    </section>
+
+    <!-- 일별 매출 추이 (FN-220) -->
+    <section class="card" id="daily">
+      <div class="card-head">
+        <h2>일별 매출 추이</h2>
+        <span class="hint"></span>
+      </div>
+      <div data-body><div class="chart-box"><canvas id="daily-chart"></canvas></div></div>
+      <div data-state class="state"></div>
+    </section>
+
+    <!-- 요일별 이번주 vs 지난주 (FN-235) -->
+    <section class="card" id="weekly-compare">
+      <div class="card-head">
+        <h2>지난주 같은 요일 대비</h2>
+        <div class="spacer"></div>
+        <span class="hint"></span>
+      </div>
+      <div data-body></div>
+      <div data-state class="state"></div>
+    </section>
+
+    <div class="grid-2">
+      <!-- 요일별 평균 매출 (FN-230) -->
+      <section class="card" id="weekday">
+        <div class="card-head"><h2>요일별 평균 매출</h2></div>
+        <div data-body><div class="chart-box"><canvas id="weekday-chart"></canvas></div></div>
+        <div data-state class="state"></div>
+      </section>
+
+      <!-- 시간대별 매출 (FN-240) -->
+      <section class="card" id="hourly">
+        <div class="card-head">
+          <h2>시간대별 매출</h2>
+          <span class="hint"></span>
+        </div>
+        <div data-body><div class="chart-box"><canvas id="hourly-chart"></canvas></div></div>
+        <div data-state class="state"></div>
+      </section>
+    </div>
+
+    <!-- 메뉴별 매출 TOP 10 (FN-250) -->
+    <section class="card" id="menu">
+      <div class="card-head">
+        <h2>메뉴별 매출 TOP 10</h2>
+        <div class="spacer"></div>
+        <button class="chip active" data-sort="sales">매출순</button>
+        <button class="chip" data-sort="quantity">수량순</button>
+      </div>
+      <div data-body></div>
+      <div data-state class="state"></div>
+    </section>
+
+    <p class="hint" id="last-updated" style="text-align:center;margin:20px 0"></p>
+  </main>
+
+  <script type="module" src="/js/dashboard.js"></script>
+</body>
+</html>

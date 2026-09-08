@@ -1,0 +1,203 @@
+/* 소담촌 마곡점 대시보드 — docs/02 8장 디자인 가이드 */
+
+:root {
+  --primary: #C8102E;        /* 샤브 레드 */
+  --secondary: #2D3E50;
+  --up: #E03131;             /* 매출 증가 */
+  --down: #1971C2;           /* 매출 감소 */
+  --bg: #F8F9FA;
+  --card: #FFFFFF;
+  --border: #DEE2E6;
+  --text: #212529;
+  --muted: #868E96;
+  --shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.04);
+  --radius: 10px;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: Pretendard, "Noto Sans KR", -apple-system, BlinkMacSystemFont,
+               "Segoe UI", "Malgun Gothic", sans-serif;
+  font-size: 14px;              /* NFR-USE-05 — 본문 최소 14px */
+  line-height: 1.5;
+  -webkit-text-size-adjust: 100%;
+}
+
+button { font-family: inherit; cursor: pointer; }
+a { color: inherit; }
+
+/* ── 로그인 (SCR-01) ─────────────────────────────── */
+.login-wrap {
+  min-height: 100vh;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+}
+.login-card {
+  width: 100%; max-width: 380px;
+  background: var(--card); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding: 32px 28px;
+}
+.login-title { text-align: center; margin-bottom: 28px; }
+.login-title .emoji { font-size: 40px; display: block; }
+.login-title h1 { font-size: 20px; font-weight: 700; margin: 8px 0 4px; }
+.login-title p { font-size: 13px; color: var(--muted); margin: 0; }
+
+.field { margin-bottom: 14px; position: relative; }
+.field input {
+  width: 100%; padding: 12px 14px; font-size: 15px;
+  border: 1px solid var(--border); border-radius: 8px; background: #fff;
+}
+.field input:focus { outline: none; border-color: var(--primary); }
+.field.error input { border-color: var(--up); }
+.field .toggle {
+  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
+  background: none; border: none; font-size: 16px; color: var(--muted);
+}
+
+.checkbox { display: flex; align-items: center; gap: 6px; margin: 12px 0 18px; font-size: 13px; }
+
+.btn-primary {
+  width: 100%; padding: 13px; font-size: 15px; font-weight: 600;
+  color: #fff; background: var(--primary); border: none; border-radius: 8px;
+}
+.btn-primary:disabled { background: #C9CDD2; cursor: not-allowed; }
+
+.form-message { margin-top: 12px; font-size: 13px; color: var(--up); min-height: 18px; }
+.login-footer { margin-top: 22px; text-align: center; font-size: 11px; color: var(--muted); }
+
+/* ── 대시보드 헤더 ────────────────────────────────── */
+.header {
+  background: var(--card); border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 10;
+}
+.header-row {
+  max-width: 1200px; margin: 0 auto; padding: 12px 16px;
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+}
+.brand { font-size: 16px; font-weight: 700; color: var(--secondary); }
+.spacer { flex: 1; }
+
+.badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 12px; color: var(--muted);
+}
+.badge .dot { width: 8px; height: 8px; border-radius: 50%; background: #40C057; }
+.badge.delayed .dot { background: #FAB005; }
+.badge.failed  .dot { background: #FA5252; }
+
+.btn-ghost {
+  padding: 7px 12px; font-size: 13px; color: var(--secondary);
+  background: transparent; border: 1px solid var(--border); border-radius: 7px;
+}
+
+/* 기간 필터 — 모바일에서 가로 스크롤 칩 (FN-201) */
+.filters {
+  max-width: 1200px; margin: 0 auto; padding: 0 16px 12px;
+  display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none;
+}
+.filters::-webkit-scrollbar { display: none; }
+.chip {
+  flex: 0 0 auto; padding: 7px 14px; font-size: 13px; white-space: nowrap;
+  background: var(--card); border: 1px solid var(--border); border-radius: 999px;
+}
+.chip.active { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 600; }
+.range-inputs { display: none; gap: 6px; align-items: center; }
+.range-inputs.show { display: flex; }
+.range-inputs input {
+  padding: 6px 8px; font-size: 13px; border: 1px solid var(--border); border-radius: 7px;
+}
+
+/* ── 본문 ─────────────────────────────────────────── */
+main { max-width: 1200px; margin: 0 auto; padding: 16px; }
+
+.kpi-grid {
+  display: grid; gap: 12px; margin-bottom: 16px;
+  grid-template-columns: repeat(2, 1fr);   /* 모바일 2×2 */
+}
+.kpi {
+  background: var(--card); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding: 16px;
+}
+.kpi .label { font-size: 12px; color: var(--muted); }
+.kpi .value { font-size: 24px; font-weight: 700; margin: 6px 0 4px; letter-spacing: -.5px; }
+.kpi .sub { font-size: 12px; color: var(--muted); }
+.kpi .delta { font-size: 13px; font-weight: 600; }
+.delta.up { color: var(--up); }
+.delta.down { color: var(--down); }
+.delta.flat { color: var(--muted); }
+
+.card {
+  background: var(--card); border-radius: var(--radius);
+  box-shadow: var(--shadow); padding: 16px; margin-bottom: 16px;
+}
+.card-head {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 12px;
+}
+.card-head h2 { font-size: 16px; font-weight: 600; margin: 0; }
+.card-head .hint { font-size: 12px; color: var(--muted); }
+
+.chart-box { position: relative; height: 260px; }
+.chart-box.tall { height: 320px; }
+
+.grid-2 { display: grid; gap: 16px; grid-template-columns: 1fr; }
+
+/* 메뉴 표 */
+.menu-list { display: flex; flex-direction: column; gap: 10px; }
+.menu-row { display: grid; grid-template-columns: 24px 1fr auto; gap: 10px; align-items: center; }
+.menu-rank { font-size: 13px; font-weight: 700; color: var(--muted); text-align: center; }
+.menu-name { font-size: 13px; font-weight: 600; }
+.menu-meta { font-size: 11px; color: var(--muted); }
+.menu-bar { height: 6px; background: #F1F3F5; border-radius: 3px; margin-top: 5px; overflow: hidden; }
+.menu-bar span { display: block; height: 100%; background: var(--primary); border-radius: 3px; }
+.menu-amount { font-size: 13px; font-weight: 600; text-align: right; white-space: nowrap; }
+.grade { font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 4px; margin-left: 5px; }
+.grade.A { background: #FFE3E3; color: #C92A2A; }
+.grade.B { background: #FFF3BF; color: #E67700; }
+.grade.C { background: #E9ECEF; color: #495057; }
+
+/* 상태 표시 (FN-260/261/262) */
+.skeleton {
+  background: linear-gradient(90deg, #F1F3F5 25%, #E9ECEF 37%, #F1F3F5 63%);
+  background-size: 400% 100%; animation: shimmer 1.2s infinite; border-radius: 6px;
+}
+@keyframes shimmer { 0% { background-position: 100% 0 } 100% { background-position: 0 0 } }
+.state { padding: 28px 12px; text-align: center; font-size: 13px; color: var(--muted); }
+.state button {
+  margin-top: 8px; padding: 6px 12px; font-size: 12px;
+  border: 1px solid var(--border); border-radius: 7px; background: #fff;
+}
+.hidden { display: none !important; }
+
+/* ── 반응형 (docs/02 8.3) ─────────────────────────── */
+@media (min-width: 768px) {
+  .grid-2 { grid-template-columns: 1fr 1fr; }
+  .kpi .value { font-size: 26px; }
+}
+@media (min-width: 1024px) {
+  .kpi-grid { grid-template-columns: repeat(4, 1fr); }
+  .kpi .value { font-size: 28px; }
+  .chart-box { height: 300px; }
+}
+
+/* ── 지난주 같은 요일 대비 (FN-235) ─────────────────── */
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.cmp { width: 100%; border-collapse: collapse; font-size: 13px; }
+.cmp th, .cmp td { padding: 8px 6px; text-align: right; white-space: nowrap; }
+.cmp thead th { font-size: 11px; font-weight: 600; color: var(--muted); border-bottom: 1px solid var(--border); }
+.cmp thead th:first-child, .cmp tbody th, .cmp tfoot th { text-align: left; }
+.cmp tbody th { font-weight: 600; color: var(--secondary); width: 32px; }
+.cmp tbody tr + tr td, .cmp tbody tr + tr th { border-top: 1px solid #F1F3F5; }
+.cmp tfoot th, .cmp tfoot td { border-top: 2px solid var(--border); font-weight: 700; }
+.cmp-amt { display: block; font-weight: 600; }
+.cmp-date { display: block; font-size: 10px; color: var(--muted); margin-top: 2px; }
+.cmp-none { display: block; color: var(--muted); }
+.cmp-note { margin: 10px 0 0; }
+
+/* ── 수동 수집 버튼 (FN-205) ─────────────────────────── */
+.collect-wrap { display: inline-flex; align-items: center; gap: 8px; }
+.collect-wrap .hint { font-size: 12px; color: var(--muted); }
+.collect-wrap button[disabled] { color: var(--muted); background: #F1F3F5; }

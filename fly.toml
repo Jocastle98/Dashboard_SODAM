@@ -1,0 +1,33 @@
+# Fly.io 배포 설정 (https://fly.io)
+#
+# 무료 허용량 안에서 영속 볼륨을 쓸 수 있어, SQLite를 유지하면서 비용 없이 띄울 수 있다.
+#   fly launch --no-deploy
+#   fly volumes create sodam_data --size 1 --region nrt
+#   fly secrets set POS_USER_ID=... POS_USER_PW=... DASHBOARD_ADMIN_PW=... SESSION_SECRET=...
+#   fly deploy
+
+app = "sodam-dashboard"
+primary_region = "nrt"        # 도쿄 — 한국에서 가장 가깝다
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  TZ = "Asia/Seoul"
+  SCHEDULER_ENABLED = "true"
+  DATABASE_URL = "sqlite:////app/data/sodam.db"
+
+[[mounts]]
+  source = "sodam_data"
+  destination = "/app/data"
+
+[http_service]
+  internal_port = 8000
+  force_https = true          # NFR-SEC-01
+  auto_stop_machines = false  # 스케줄러가 04시에 돌아야 하므로 잠들면 안 된다
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

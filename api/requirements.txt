@@ -1,0 +1,19 @@
+# Vercel 함수(대시보드) 전용 의존성.
+#
+# 루트 requirements.txt 는 수집기까지 포함한다. 여기는 **화면만** 돌리는 데
+# 필요한 것만 둔다 — 배포판에 POS 파싱 코드(bs4/lxml)나 스케줄러(apscheduler)가
+# 들어갈 이유가 없다 (CLAUDE.md 「POS 접근은 오직 collector/ 안에서만」).
+#
+# 목록 근거: SCHEDULER_ENABLED=false 로 server.main 을 적재해 실제 import 를 측정했다.
+# fastapi 가 starlette·pydantic·anyio 를 끌어오므로 따로 적지 않는다.
+
+fastapi>=0.115
+bcrypt>=4.2
+itsdangerous>=2.2
+
+# 아래 둘은 **지연 import** 라 적재 측정에 안 잡히지만 런타임에 반드시 필요하다.
+#   psycopg  : collector/db/drivers.py open_postgres() 안에서 import
+#   requests : server/collect_trigger.py _github_request() 안에서 import
+#              (지금 수집 버튼이 GitHub Actions 를 깨울 때 쓴다)
+psycopg[binary]>=3.2
+requests>=2.32

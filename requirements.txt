@@ -1,0 +1,28 @@
+# 수집기 (collector/)
+requests>=2.32
+beautifulsoup4>=4.12
+lxml>=5.2
+
+# DB — SQLite(로컬)는 표준 라이브러리, PostgreSQL(Neon 배포)은 psycopg
+# 어느 쪽을 쓸지는 DATABASE_URL 접두사가 결정한다 (collector/db/dialect.py)
+psycopg[binary]>=3.2
+
+# 백엔드 (server/)
+fastapi>=0.115
+uvicorn[standard]>=0.30
+bcrypt>=4.2
+itsdangerous>=2.2
+
+# 스케줄러 (FN-601)
+apscheduler>=3.10
+
+# 테스트
+pytest>=8.3
+httpx>=0.27
+
+# ── 선택 의존성 ───────────────────────────────────────
+# POS 응답은 HTML 표로 확인됐으므로(docs/03) 평상시에는 필요 없다.
+# 응답이 진짜 엑셀 바이너리로 바뀌면 그때 설치한다 — 컨테이너 크기를 아끼기 위해 제외.
+#   pandas>=2.2
+#   xlrd>=2.0        # .xls (OLE2)
+#   openpyxl>=3.1    # .xlsx
