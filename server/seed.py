@@ -35,17 +35,17 @@ def main() -> int:
         log("  .env의 SESSION_SECRET 이 비어 있습니다.")
         return 1
 
-    with collector_repo.connect(settings) as connection:
-        collector_repo.apply_schema(connection)
-        store_id = collector_repo.ensure_store(connection, settings)
+    with collector_repo.connect(settings) as session:
+        collector_repo.apply_schema(session)
+        store_id = collector_repo.ensure_store(session, settings)
 
         password_hash = hash_password(settings.dashboard_admin_pw)
-        existing = user_repo.find_by_username(connection, settings.dashboard_admin_id)
+        existing = user_repo.find_by_username(session, settings.dashboard_admin_id)
         if existing:
-            user_repo.update_password(connection, existing["user_id"], password_hash)
+            user_repo.update_password(session, existing["user_id"], password_hash)
             log(f"  기존 계정 비밀번호 갱신: {mask(settings.dashboard_admin_id, 3)}")
         else:
-            user_repo.create(connection, store_id, settings.dashboard_admin_id, password_hash)
+            user_repo.create(session, store_id, settings.dashboard_admin_id, password_hash)
             log(f"  계정 생성: {mask(settings.dashboard_admin_id, 3)}")
 
     log("  비밀번호는 bcrypt 해시로 저장했습니다 (평문 미저장).")

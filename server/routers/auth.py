@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-import sqlite3
-
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from pydantic import BaseModel, Field
+
+from collector.db import Row, Session
 
 from ..deps import _error, current_user, get_connection, get_session_codec, get_settings, get_throttle
 from ..repository import system as system_repo
@@ -25,7 +25,7 @@ class LoginRequest(BaseModel):
 def login(
     payload: LoginRequest,
     response: Response,
-    connection: sqlite3.Connection = Depends(get_connection),
+    session: Session = Depends(get_connection),
 ):
     throttle = get_throttle()
 
@@ -37,7 +37,7 @@ def login(
                     "retryAfter": retry_after},
         )
 
-    user = user_repo.find_by_username(connection, payload.username)
+    user = user_repo.find_by_username(session, payload.username)
     if user is None or not verify_password(payload.password, user["password_hash"]):
         throttle.record_failure(payload.username)
         # FN-105 — 사유를 세분화하지 않는다 (계정 열거 방지)
@@ -47,7 +47,7 @@ def login(
         )
 
     throttle.clear(payload.username)
-    user_repo.touch_login(connection, user["user_id"])
+    user_repo.touch_login(session, user["user_id"])
 
     max_age = REMEMBER_MAX_AGE if payload.remember else SESSION_MAX_AGE  # FR-AUTH-07
     response.set_cookie(
@@ -56,9 +56,11 @@ def login(
         max_age=max_age,
         httponly=True,      # 스크립트에서 읽을 수 없게 (NFR-SEC-03)
         samesite="lax",
-        secure=False,       # 배포 시 HTTPS에서 True (NFR-SEC-01)
+        # HTTPS 배포에서는 Secure 를 붙인다 (NFR-SEC-01).
+        # Vercel 에서는 설정 없이도 자동으로 켜진다 — collector/config.py 참고.
+        secure=get_settings().session_cookie_secure,
     )
-    return {"success": True, "user": _user_block(connection, user)}
+    return {"success": True, "user": _user_block(session, user)}
 
 
 @router.post("/logout")
@@ -68,17 +70,17 @@ def logout(response: Response):
 
 
 @router.get("/session")
-def session(
-    user: sqlite3.Row = Depends(current_user),
-    connection: sqlite3.Connection = Depends(get_connection),
+def read_session(
+    user: Row = Depends(current_user),
+    session: Session = Depends(get_connection),
 ):
     """FN-108 — 진입 시 유효 세션이면 대시보드로 바로 보낸다."""
-    return {"authenticated": True, "user": _user_block(connection, user)}
+    return {"authenticated": True, "user": _user_block(session, user)}
 
 
-def _user_block(connection: sqlite3.Connection, user: sqlite3.Row) -> dict:
+def _user_block(session: Session, user: Row) -> dict:
     """응답에 비밀번호 해시나 POS 계정이 실리지 않게 필요한 필드만 담는다."""
-    store = system_repo.store_info(connection, user["store_id"])
+    store = system_repo.store_info(session, user["store_id"])
     return {
         "username": user["username"],
         "role": user["role"],

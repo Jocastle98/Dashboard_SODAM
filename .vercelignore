@@ -1,0 +1,41 @@
+# Vercel 업로드 제외 목록.
+#
+# ⚠ 이 파일이 없으면 `data/`(25MB, SQLite + POS 원본 HTML)와
+#   `dist/`(실매출이 박힌 스냅샷 HTML)가 그대로 올라간다.
+#   둘 다 사장님 영업 기밀이며 배포판이 들 이유가 없다.
+#
+# 함수가 필요로 하는 것은 vercel.json 의 includeFiles 가 명시한다:
+#   web/ db/ collector/ server/  — 이 목록과 어긋나게 제외하지 말 것.
+
+# ── 실데이터 (절대 올리지 않는다) ───────────────────
+data/
+dist/
+*.db
+*.sqlite
+*.sqlite3
+
+# ── 비밀값 ─────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ── 함수가 쓰지 않는 것 ─────────────────────────────
+tests/
+docs/
+.git/
+.github/
+__pycache__/
+**/__pycache__/
+*.pyc
+.pytest_cache/
+
+# 다른 호스팅용 설정 — Vercel 에서는 쓰지 않는다
+Dockerfile
+fly.toml
+render.yaml
+
+# 수집기 CLI 진입점. 함수는 화면만 돌린다 (수집은 GitHub Actions 담당).
+# ⚠ collector/ 자체는 제외하지 않는다 — config.py 와 db/ 가 필요하다.
+collector/probe_*.py
+collector/inspect_file.py
+collector/migrate.py

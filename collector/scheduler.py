@@ -41,10 +41,10 @@ def collect_yesterday(settings: Settings) -> bool:
     section(f"자동 수집 {target}")
 
     try:
-        with repo.connect(settings) as connection:
-            repo.apply_schema(connection)
+        with repo.connect(settings) as session:
+            repo.apply_schema(session)
             client = PosClient(settings, create_session(settings))
-            result = Collector(settings, client, connection).collect(target, target)
+            result = Collector(settings, client, session).collect(target, target)
     except Exception as error:  # noqa: BLE001 — 어떤 실패든 알리고 살아남는다
         warn(f"수집 중단: {type(error).__name__}: {error}")
         notify_failure(settings, f"{target} 수집 실패", f"{type(error).__name__}: {error}")

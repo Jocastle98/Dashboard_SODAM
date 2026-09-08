@@ -6,13 +6,13 @@
 
 from __future__ import annotations
 
-import sqlite3
 from functools import lru_cache
 from typing import Iterator
 
 from fastapi import Cookie, Depends, HTTPException, Query, status
 
 from collector.config import Settings
+from collector.db import Row, Session
 
 from .db import open_connection
 from .repository import system as system_repo
@@ -36,13 +36,13 @@ def get_throttle() -> LoginThrottle:
     return LoginThrottle()
 
 
-def get_connection() -> Iterator[sqlite3.Connection]:
-    with open_connection(get_settings()) as connection:
-        yield connection
+def get_connection() -> Iterator[Session]:
+    with open_connection(get_settings()) as session:
+        yield session
 
 
-def get_store_id(connection: sqlite3.Connection = Depends(get_connection)) -> int:
-    store_id = system_repo.store_id_by_code(connection, get_settings().store_code)
+def get_store_id(session: Session = Depends(get_connection)) -> int:
+    store_id = system_repo.store_id_by_code(session, get_settings().store_code)
     if store_id is None:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -52,12 +52,12 @@ def get_store_id(connection: sqlite3.Connection = Depends(get_connection)) -> in
 
 
 def current_user(
-    session: str | None = Cookie(default=None, alias=SESSION_COOKIE),
-    connection: sqlite3.Connection = Depends(get_connection),
-) -> sqlite3.Row:
+    session_cookie: str | None = Cookie(default=None, alias=SESSION_COOKIE),
+    session: Session = Depends(get_connection),
+) -> Row:
     """미인증 요청은 401 (NFR-SEC-04). 프론트는 이때 로그인 화면으로 보낸다 (FN-263)."""
-    username = get_session_codec().read(session) if session else None
-    user = user_repo.find_by_username(connection, username) if username else None
+    username = get_session_codec().read(session_cookie) if session_cookie else None
+    user = user_repo.find_by_username(session, username) if username else None
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

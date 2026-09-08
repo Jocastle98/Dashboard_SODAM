@@ -188,12 +188,109 @@ def test_unknown_menu_returns_404(auth_client):
     assert response.json()["error"]["code"] == "NOT_FOUND"
 
 
+# ── 요일 비교 (FN-235 / FR-DASH-13) ────────────────────────
+
+def test_weekly_compare_returns_seven_weekdays(auth_client):
+    body = auth_client.get(f"/api/sales/weekly-compare?{PERIOD}").json()
+    assert [row["dayOfWeek"] for row in body["data"]] == ["월", "화", "수", "목", "금", "토", "일"]
+
+
+def test_weekly_compare_pairs_the_same_weekday_a_week_apart(auth_client):
+    """'지난주 수요일 vs 이번주 수요일' — 두 날짜가 정확히 7일 차이여야 한다."""
+    from datetime import date
+
+    body = auth_client.get(f"/api/sales/weekly-compare?{PERIOD}").json()
+    for row in body["data"]:
+        this_day = date.fromisoformat(row["thisWeek"]["date"])
+        last_day = date.fromisoformat(row["lastWeek"]["date"])
+        assert (this_day - last_day).days == 7
+
+
+def test_weekly_compare_uses_calendar_weeks(auth_client):
+    """이번 주는 월요일에 시작한다 — '최근 7일' 같은 이동 구간이 아니다."""
+    body = auth_client.get(f"/api/sales/weekly-compare?{PERIOD}").json()
+    assert body["thisWeek"]["from"] == "2026-08-10"      # 월요일
+    assert body["lastWeek"]["from"] == "2026-08-03"
+
+
+def test_weekly_compare_change_matches_the_two_values(auth_client):
+    body = auth_client.get(f"/api/sales/weekly-compare?{PERIOD}").json()
+    for row in body["data"]:
+        this_sales, last_sales = row["thisWeek"]["sales"], row["lastWeek"]["sales"]
+        if this_sales is None or last_sales is None:
+            assert row["change"] is None       # 0원으로 치면 ▼100%가 된다 (FR-DASH-12)
+            continue
+        expected = round((this_sales - last_sales) / last_sales * 100, 1)
+        assert row["change"] == expected
+
+
+def test_weekly_compare_total_only_counts_paired_days(auth_client):
+    """
+    이번 주가 아직 안 끝났을 때 3일 합계와 7일 합계를 비교하면
+    사장님이 매출이 반토막 난 것으로 오해한다.
+    """
+    body = auth_client.get(f"/api/sales/weekly-compare?{PERIOD}").json()
+    paired = [row for row in body["data"]
+              if row["thisWeek"]["sales"] is not None and row["lastWeek"]["sales"] is not None]
+    assert body["total"]["pairedDays"] == len(paired)
+    assert body["total"]["thisWeekSales"] == sum(r["thisWeek"]["sales"] for r in paired)
+    assert body["total"]["lastWeekSales"] == sum(r["lastWeek"]["sales"] for r in paired)
+
+
+def test_weekly_compare_falls_back_to_the_last_day_with_sales(auth_client):
+    """
+    수집이 며칠 밀려도 표가 통째로 비지 않아야 한다 —
+    기간 안에서 매출이 있는 마지막 날이 속한 주를 기준으로 잡는다 (FN-235).
+    """
+    body = auth_client.get("/api/sales/weekly-compare?from=2026-08-10&to=2026-09-30").json()
+    assert body["total"]["pairedDays"] > 0
+
+
+# ── 메뉴 표시명 (FN-251 / FR-DASH-14) ──────────────────────
+
+def test_menu_ranking_applies_display_aliases(auth_client):
+    """
+    POS 원본 이름 `초등학생(70g)` 이 화면까지 새어 나가면 안 된다.
+    DB는 그대로 두고 표시 단계에서만 갈아 끼운다.
+    """
+    from server.service.menu_alias import ALIASES
+
+    body = auth_client.get(f"/api/menu/ranking?{PERIOD}&limit=100").json()
+    by_code = {row["menuCode"]: row["menuName"] for row in body["data"]}
+    matched = {code: name for code, name in ALIASES.items() if code in by_code}
+    if not matched:
+        pytest.skip("이 기간에 별칭 대상 메뉴가 팔리지 않았습니다")
+    for code, alias in matched.items():
+        assert by_code[code] == alias
+
+
 # ── 시스템 ─────────────────────────────────────────────────
 
 def test_status_reports_data_range(auth_client):
     body = auth_client.get("/api/system/status").json()
     assert body["status"] in ("ok", "delayed", "failed")
     assert body["dataRange"]["from"] <= body["dataRange"]["to"]
+
+
+def test_collect_status_describes_the_button(auth_client):
+    """FN-205 — 화면은 이 세 값만 보고 버튼을 그린다."""
+    body = auth_client.get("/api/system/collect/status").json()
+    assert body["backend"] in ("local", "github", "none")
+    assert isinstance(body["available"], bool)
+    assert isinstance(body["running"], bool)
+    assert body["retryAfterSec"] >= 0
+
+
+def test_collect_endpoints_require_login(client):
+    """
+    NFR-SEC-04 — 인증 없이 POS 수집을 유발할 수 있으면 안 된다.
+
+    ⚠ 인증된 POST 는 여기서 시험하지 않는다. 실제로 POS에 요청이 나가기 때문이다
+      (CLAUDE.md 「POS 서버 배려」). 차단 장치 검증은 tests/test_collect_trigger.py 가
+      수집 본체를 대역으로 바꿔 놓고 한다.
+    """
+    assert client.get("/api/system/collect/status").status_code == 401
+    assert client.post("/api/system/collect").status_code == 401
 
 
 # ── 정적 프론트엔드 ────────────────────────────────────────
@@ -208,7 +305,8 @@ def test_dashboard_page_is_served(client):
 
 def test_frontend_never_contains_pos_credentials(client, settings):
     """TC-18 — 번들에 POS 계정이 없어야 한다."""
-    for path in ("/", "/dashboard", "/js/api.js", "/js/dashboard.js", "/js/login.js"):
+    for path in ("/", "/dashboard", "/js/api.js", "/js/dashboard.js", "/js/login.js",
+                 "/js/refresh.js", "/js/widgets/weeklycompare.js"):
         body = client.get(path).text
         assert settings.pos_user_pw not in body
         assert "topint.co.kr" not in body      # 프론트는 POS를 알지도 못한다

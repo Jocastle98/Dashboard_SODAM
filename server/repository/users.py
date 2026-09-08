@@ -2,37 +2,43 @@
 
 from __future__ import annotations
 
-import sqlite3
-from datetime import datetime, timezone
+from collector.db import Row, Session, now
 
 
-def find_by_username(connection: sqlite3.Connection, username: str) -> sqlite3.Row | None:
-    return connection.execute(
+def find_by_username(session: Session, username: str) -> Row | None:
+    return session.execute(
         "SELECT user_id, store_id, username, password_hash, role FROM users WHERE username = ?",
         (username,),
     ).fetchone()
 
 
-def touch_login(connection: sqlite3.Connection, user_id: int) -> None:
-    connection.execute(
-        "UPDATE users SET last_login_at = ? WHERE user_id = ?",
-        (datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds"), user_id),
+def touch_login(session: Session, user_id: int) -> None:
+    # 시각 형식은 collector/db/now() 하나만 쓴다 — 여기서 따로 만들지 않는다
+    session.execute(
+        "UPDATE users SET last_login_at = ? WHERE user_id = ?", (now(), user_id)
     )
-    connection.commit()
+    session.commit()
 
 
-def create(connection: sqlite3.Connection, store_id: int,
+def create(session: Session, store_id: int,
            username: str, password_hash: str, role: str = "owner") -> int:
-    cursor = connection.execute(
-        "INSERT INTO users (store_id, username, password_hash, role) VALUES (?,?,?,?)",
-        (store_id, username, password_hash, role),
-    )
-    connection.commit()
-    return int(cursor.lastrowid)
+    """
+    `RETURNING`으로 새 user_id를 받는다.
+
+    `cursor.lastrowid`를 쓰지 않는 이유: **psycopg에는 없다.**
+    `RETURNING`은 PostgreSQL과 SQLite(3.35+) 양쪽에서 동작한다.
+    """
+    row = session.execute(
+        "INSERT INTO users (store_id, username, password_hash, role, created_at) "
+        "VALUES (?,?,?,?,?) RETURNING user_id",
+        (store_id, username, password_hash, role, now()),
+    ).fetchone()
+    session.commit()
+    return int(row["user_id"])
 
 
-def update_password(connection: sqlite3.Connection, user_id: int, password_hash: str) -> None:
-    connection.execute(
+def update_password(session: Session, user_id: int, password_hash: str) -> None:
+    session.execute(
         "UPDATE users SET password_hash = ? WHERE user_id = ?", (password_hash, user_id)
     )
-    connection.commit()
+    session.commit()

@@ -3,6 +3,10 @@ requests>=2.32
 beautifulsoup4>=4.12
 lxml>=5.2
 
+# DB — SQLite(로컬)는 표준 라이브러리, PostgreSQL(Neon 배포)은 psycopg
+# 어느 쪽을 쓸지는 DATABASE_URL 접두사가 결정한다 (collector/db/dialect.py)
+psycopg[binary]>=3.2
+
 # 백엔드 (server/)
 fastapi>=0.115
 uvicorn[standard]>=0.30

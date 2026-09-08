@@ -21,7 +21,7 @@ from fastapi.responses import FileResponse, JSONResponse  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 
 from collector.config import ROOT  # noqa: E402
-from server.routers import auth, data  # noqa: E402
+from server.routers import auth, data, system  # noqa: E402
 
 WEB_DIR = ROOT / "web"
 
@@ -36,6 +36,7 @@ def create_app() -> FastAPI:
 
     app.include_router(auth.router)
     app.include_router(data.router)
+    app.include_router(system.router)
 
     _install_error_handlers(app)
     _install_scheduler(app)
@@ -52,11 +53,17 @@ def _install_scheduler(app: FastAPI) -> None:
     `python -m collector.scheduler`를 별도 프로세스로 돌릴 것.
     """
     from collector.config import Settings
-    from collector.scheduler import build_scheduler, describe
 
     settings = Settings.load()
     if not settings.scheduler_enabled:
         return
+
+    # ⚠ 이 import 는 반드시 early return **뒤**에 온다.
+    #   collector.scheduler 는 auth·pos_client·service 를 끌어오므로,
+    #   앞에 두면 스케줄러를 껐어도 대시보드가 POS 클라이언트 전체를 적재한다.
+    #   Vercel 배포판에는 POS 계정도 POS 코드도 있을 이유가 없다
+    #   (CLAUDE.md 「POS 접근은 오직 collector/ 안에서만」).
+    from collector.scheduler import build_scheduler, describe
 
     scheduler = build_scheduler(settings)
 

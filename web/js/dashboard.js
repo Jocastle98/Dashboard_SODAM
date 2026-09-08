@@ -5,11 +5,13 @@
 
 import { api, redirectOnUnauthorized } from './api.js';
 import { stamp } from './format.js';
+import { collectButton } from './refresh.js';
 import { dailyWidget } from './widgets/daily.js';
 import { hourlyWidget } from './widgets/hourly.js';
 import { kpiWidget } from './widgets/kpi.js';
 import { menuWidget } from './widgets/menu.js';
 import { weekdayWidget } from './widgets/weekday.js';
+import { weeklyCompareWidget } from './widgets/weeklycompare.js';
 
 const iso = (date) => date.toISOString().slice(0, 10);
 const shift = (date, days) => new Date(date.getTime() + days * 86_400_000);
@@ -29,9 +31,13 @@ function presetPeriod(preset) {
   }
 }
 
-const widgets = [kpiWidget(), dailyWidget(), weekdayWidget(), hourlyWidget(), menuWidget()];
+const widgets = [kpiWidget(), dailyWidget(), weeklyCompareWidget(),
+                 weekdayWidget(), hourlyWidget(), menuWidget()];
+
+let lastPeriod = presetPeriod('week');
 
 function refreshAll(period) {
+  lastPeriod = period;
   // 개별 호출로 띄운다 — 하나가 느려도 나머지가 먼저 그려진다 (FN-260)
   widgets.forEach((widget) => widget.refresh(period));
 }
@@ -96,6 +102,15 @@ async function start() {
 
   bindFilters();
   paintStatusBadge();
+
+  // 수집이 끝나면 화면을 다시 그린다 — 마지막으로 보고 있던 기간 그대로 (FN-205)
+  collectButton({
+    onFinished: () => {
+      paintStatusBadge();
+      refreshAll(lastPeriod);
+    },
+  }).start();
+
   refreshAll(presetPeriod('week'));
 }
 

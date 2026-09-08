@@ -17,6 +17,11 @@
       <div class="spacer"></div>
       <!-- FN-203 갱신 상태 배지 -->
       <span class="badge" id="status-badge"><span class="dot"></span><span data-text>확인 중…</span></span>
+      <!-- FN-205 수동 수집 — 서버가 트리거 수단이 없다고 하면 스스로 숨는다 -->
+      <span class="collect-wrap" id="collect-wrap">
+        <span class="hint" id="collect-message"></span>
+        <button class="btn-ghost" id="collect-now" hidden>지금 수집</button>
+      </span>
       <!-- FN-204 로그아웃 -->
       <button class="btn-ghost" id="logout">로그아웃</button>
     </div>
@@ -55,6 +60,17 @@
         <span class="hint"></span>
       </div>
       <div data-body><div class="chart-box"><canvas id="daily-chart"></canvas></div></div>
+      <div data-state class="state"></div>
+    </section>
+
+    <!-- 요일별 이번주 vs 지난주 (FN-235) -->
+    <section class="card" id="weekly-compare">
+      <div class="card-head">
+        <h2>지난주 같은 요일 대비</h2>
+        <div class="spacer"></div>
+        <span class="hint"></span>
+      </div>
+      <div data-body></div>
       <div data-state class="state"></div>
     </section>
 

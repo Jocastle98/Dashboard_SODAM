@@ -1,0 +1,70 @@
+# 매출 수집 (FN-601 자동 / FN-205 수동)
+#
+# 왜 여기서 수집하는가:
+#   Vercel 함수는 10초에서 끊긴다. pos_client 의 재시도 백오프(5/15/45초)만 최대 65초라
+#   수집기를 Vercel에 올릴 수 없다. Actions는 실행시간 제한이 사실상 없다.
+#   그리고 POS 계정은 이 워크플로에만 둔다 — 사장님이 접속하는 Vercel 쪽에는 올리지 않는다.
+#
+# 트리거는 둘뿐이다:
+#   schedule          매일 04:00 (Asia/Seoul)
+#   workflow_dispatch Actions 화면의 Run workflow 버튼, 그리고 대시보드의 "지금 수집" 버튼
+#
+# ⚠ 저장소에 60일간 아무 활동이 없으면 GitHub이 schedule 을 자동으로 멈춘다.
+#   수집이 조용히 끊기므로 커밋이 뜸해지면 확인할 것 (docs/06 참고).
+
+name: collect
+
+on:
+  schedule:
+    # 04:00 Asia/Seoul = 19:00 UTC (전날). cron 은 UTC로만 해석된다.
+    - cron: "0 19 * * *"
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "실행 이유 (대시보드 버튼이 자동으로 채운다)"
+        required: false
+        default: "manual"
+
+# 겹쳐 돌지 않게 — POS에 동시 요청 금지 (CLAUDE.md 「POS 서버 배려」).
+# cancel-in-progress: false — 돌고 있는 수집을 죽이면 부분 적재로 끝난다.
+concurrency:
+  group: collect
+  cancel-in-progress: false
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # collector/main.py 는 date.today() 로 '전일'을 계산한다.
+      # UTC로 두면 04:00 KST 실행 시 하루 어긋난 날짜를 수집한다.
+      TZ: Asia/Seoul
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - run: python -m pip install -r requirements.txt
+
+      - name: 전일 수집
+        env:
+          POS_USER_ID: ${{ secrets.POS_USER_ID }}
+          POS_USER_PW: ${{ secrets.POS_USER_PW }}
+          POS_BRANCH: ${{ secrets.POS_BRANCH }}
+          POS_LANDING_URL: ${{ secrets.POS_LANDING_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          STORE_CODE: ${{ secrets.STORE_CODE }}
+          STORE_NAME: ${{ secrets.STORE_NAME }}
+          ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
+        run: python -m collector.main --yesterday
+
+      - name: 적재 현황
+        if: always()
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          STORE_CODE: ${{ secrets.STORE_CODE }}
+        run: python -m collector.main --status

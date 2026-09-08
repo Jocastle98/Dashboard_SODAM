@@ -11,7 +11,6 @@
 
 from __future__ import annotations
 
-import sqlite3
 from calendar import monthrange
 from dataclasses import dataclass, field
 from datetime import date, timedelta
@@ -30,6 +29,7 @@ from .logutil import log, warn
 from .parse import parse_cancels, parse_menu, parse_orders
 from .parse.tables import ParseError
 from .pos_client import PosClient
+from .db import Session
 
 DATE_FORMAT = "%Y%m%d"
 
@@ -65,11 +65,11 @@ def each_day(start: date, end: date) -> list[date]:
 
 
 class Collector:
-    def __init__(self, settings: Settings, client: PosClient, connection: sqlite3.Connection):
+    def __init__(self, settings: Settings, client: PosClient, session: Session):
         self.settings = settings
         self.client = client
-        self.connection = connection
-        self.store_id = repo.ensure_store(connection, settings)
+        self.session = session
+        self.store_id = repo.ensure_store(session, settings)
 
     # ── 공개 진입점 ─────────────────────────────────────
     def collect(self, start: date, end: date) -> CollectResult:
@@ -95,7 +95,7 @@ class Collector:
             )
             if orders is None:
                 continue
-            result.orders += repo.upsert_orders(self.connection, self.store_id, orders)
+            result.orders += repo.upsert_orders(self.session, self.store_id, orders)
             collected.extend(orders)
             log(f"         {len(orders)}건")
         return collected
@@ -110,7 +110,7 @@ class Collector:
             )
             if cancels is None:
                 continue
-            result.cancels += repo.upsert_cancels(self.connection, self.store_id, cancels)
+            result.cancels += repo.upsert_cancels(self.session, self.store_id, cancels)
             collected.extend(cancels)
         return collected
 
@@ -128,7 +128,7 @@ class Collector:
             )
             if sales is None:
                 continue
-            result.menu_rows += repo.upsert_menu_sales(self.connection, self.store_id, sales)
+            result.menu_rows += repo.upsert_menu_sales(self.session, self.store_id, sales)
             totals[iso] = sum(s.sales_amount for s in sales)
         return totals
 
@@ -153,17 +153,17 @@ class Collector:
             response = fetch(date_from, date_to)
             if response.status_code >= 400:
                 raise ParseError(f"HTTP {response.status_code}")
-            repo.save_raw_file(self.connection, self.store_id, report_type,
+            repo.save_raw_file(self.session, self.store_id, report_type,
                                date_from, date_to, response.content)
             parsed = parse(response.content)
         except Exception as error:  # noqa: BLE001 — 한 기간 실패가 전체를 멈추면 안 된다
             message = f"{report_type} {date_from}~{date_to}: {type(error).__name__}: {error}"
             result.failures.append(message)
             warn(message)
-            repo.write_log(self.connection, entry, "failed", 0, str(error))
+            repo.write_log(self.session, entry, "failed", 0, str(error))
             return None
 
-        repo.write_log(self.connection, entry, "success", len(parsed))
+        repo.write_log(self.session, entry, "success", len(parsed))
         return parsed
 
     # ── 집계 ────────────────────────────────────────────
@@ -172,9 +172,9 @@ class Collector:
         daily = aggregate_daily(orders, cancels, covered_dates=covered)
         hourly = aggregate_hourly(orders)
 
-        result.daily = repo.upsert_daily(self.connection, self.store_id, daily)
+        result.daily = repo.upsert_daily(self.session, self.store_id, daily)
         result.hourly = repo.replace_hourly(
-            self.connection, self.store_id, hourly, [d.biz_date for d in daily]
+            self.session, self.store_id, hourly, [d.biz_date for d in daily]
         )
 
     def _successfully_covered_days(self, start: date, end: date) -> list[str]:
@@ -183,7 +183,7 @@ class Collector:
         DQ-02(휴무 판정)는 '수집에 성공했는데 주문이 0건'이라는 사실에 근거한다.
         수집 자체가 실패한 날을 휴무로 기록하면 안 된다.
         """
-        rows = self.connection.execute(
+        rows = self.session.execute(
             """
             SELECT target_from, target_to FROM collection_logs
             WHERE store_id = ? AND report_type = 'orders' AND status = 'success'

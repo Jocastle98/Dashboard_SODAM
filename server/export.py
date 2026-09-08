@@ -40,23 +40,24 @@ DIST = ROOT / "dist"
 
 def build_payload(settings: Settings, period: Period) -> dict:
     """화면이 필요로 하는 모든 응답을 한 번에 모은다."""
-    with open_connection(settings) as connection:
-        store_id = system_repo.store_id_by_code(connection, settings.store_code)
+    with open_connection(settings) as session:
+        store_id = system_repo.store_id_by_code(session, settings.store_code)
         if store_id is None:
             raise SystemExit("수집된 데이터가 없습니다. 먼저 `python -m collector.main --days 7`")
 
-        store = system_repo.store_info(connection, store_id)
+        store = system_repo.store_info(session, store_id)
         return {
             "generatedAt": _now_iso(),
             "period": {"from": period.date_from.isoformat(), "to": period.date_to.isoformat()},
             "storeName": store["store_name"] if store else settings.store_name,
-            "summary": sales_service.summary(connection, store_id, period),
-            "daily": sales_service.daily(connection, store_id, period),
-            "weekday": sales_service.weekday(connection, store_id, period),
-            "hourly": sales_service.hourly(connection, store_id, period),
-            "menu": menu_service.ranking(connection, store_id, period, 10, "sales"),
-            "menuByQuantity": menu_service.ranking(connection, store_id, period, 10, "quantity"),
-            "status": system_service.status(connection, store_id),
+            "summary": sales_service.summary(session, store_id, period),
+            "daily": sales_service.daily(session, store_id, period),
+            "weekday": sales_service.weekday(session, store_id, period),
+            "weeklyCompare": sales_service.weekly_compare(session, store_id, period),
+            "hourly": sales_service.hourly(session, store_id, period),
+            "menu": menu_service.ranking(session, store_id, period, 10, "sales"),
+            "menuByQuantity": menu_service.ranking(session, store_id, period, 10, "quantity"),
+            "status": system_service.status(session, store_id),
         }
 
 
@@ -73,12 +74,14 @@ def render(payload: dict) -> str:
         "kpi.js": (WEB / "js" / "widgets" / "kpi.js").read_text(encoding="utf-8"),
         "daily.js": (WEB / "js" / "widgets" / "daily.js").read_text(encoding="utf-8"),
         "weekday.js": (WEB / "js" / "widgets" / "weekday.js").read_text(encoding="utf-8"),
+        "weeklycompare.js": (WEB / "js" / "widgets" / "weeklycompare.js").read_text(encoding="utf-8"),
         "hourly.js": (WEB / "js" / "widgets" / "hourly.js").read_text(encoding="utf-8"),
         "menu.js": (WEB / "js" / "widgets" / "menu.js").read_text(encoding="utf-8"),
     }
 
     body = _extract_body(dashboard)
     body = body.replace('<button class="btn-ghost" id="logout">로그아웃</button>', "")
+    body = _strip_collect_button(body)
     body = _replace_filters_with_notice(body)
 
     return _TEMPLATE.format(
@@ -95,6 +98,18 @@ def _extract_body(html: str) -> str:
     start = html.index("<header")
     end = html.index("<script", start)
     return html[start:end]
+
+
+def _strip_collect_button(body: str) -> str:
+    """
+    수동 수집 버튼은 서버가 있어야 동작한다 — POS 접근·인증·최소 간격 판단이 전부 서버 몫이다.
+    스냅샷에서는 통째로 없앤다. 눌러도 아무 일이 없는 버튼을 남겨 두지 않는다.
+    """
+    start = body.find('<span class="collect-wrap"')
+    if start < 0:
+        return body
+    end = body.index("</span>", body.index("</button>", start)) + len("</span>")
+    return body[:start] + body[end:]
 
 
 def _replace_filters_with_notice(body: str) -> str:
@@ -149,6 +164,7 @@ _TEMPLATE = """<!DOCTYPE html>
     summary: async () => DATA.summary,
     daily: async () => DATA.daily,
     weekday: async () => DATA.weekday,
+    weeklyCompare: async () => DATA.weeklyCompare,
     hourly: async () => DATA.hourly,
     menuRanking: async (_p, _limit, sortBy) =>
       (sortBy === 'quantity' ? DATA.menuByQuantity : DATA.menu),
@@ -173,7 +189,8 @@ _TEMPLATE = """<!DOCTYPE html>
   }}
 
   const period = DATA.period;
-  [kpiWidget(), dailyWidget(), weekdayWidget(), hourlyWidget(), menuWidget()]
+  [kpiWidget(), dailyWidget(), weeklyCompareWidget(),
+   weekdayWidget(), hourlyWidget(), menuWidget()]
     .forEach((w) => w.refresh(period));
 }})();
 </script>

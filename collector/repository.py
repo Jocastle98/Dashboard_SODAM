@@ -3,80 +3,54 @@ DB 적재 — SQL은 이 모듈 밖으로 나가지 않는다.
 
 모든 쓰기는 UPSERT다 (FR-COL-05 / FN-604).
 같은 날짜를 다시 수집해도 중복되지 않고 갱신된다.
+`ON CONFLICT ... DO UPDATE` 문법은 SQLite와 PostgreSQL이 같아 그대로 쓴다.
+
+연결·방언은 `collector/db/`가 담당한다. 여기서는 `?` 자리표시자로 SQL을 쓰고,
+방언별로 갈리는 조각만 `session.dialect`에 물어본다 (`dialect.true` 등).
+
+시각 값은 `db.now()` 하나만 쓴다. DB의 DEFAULT를 쓰지 않는 이유는 `db/__init__.py` 참고.
 """
 
 from __future__ import annotations
 
 import hashlib
-import sqlite3
-from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime, timezone
 from pathlib import Path
-from typing import Iterator
 
 from .aggregate import DailySales, HourlySales
 from .config import ROOT, Settings
+from .db import (  # noqa: F401 — 재노출
+    Session, apply_schema, connect, describe_target, now, sqlite_path,
+)
 from .parse.cancels import Cancel
 from .parse.menu import MenuSale
 from .parse.orders import Order
 
-SCHEMA_PATH = ROOT / "db" / "schema.sql"
-
-
-def database_path(settings: Settings) -> Path:
-    """`sqlite:///./data/sodam.db` → 실제 파일 경로."""
-    url = settings.database_url
-    prefix = "sqlite:///"
-    if not url.startswith(prefix):
-        raise ValueError(f"SQLite URL만 지원합니다 (현재: {url}). PostgreSQL은 배포 시 전환.")
-    raw = url[len(prefix):]
-    path = Path(raw)
-    return path if path.is_absolute() else (ROOT / raw).resolve()
-
-
-@contextmanager
-def connect(settings: Settings) -> Iterator[sqlite3.Connection]:
-    path = database_path(settings)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    connection = sqlite3.connect(path)
-    connection.row_factory = sqlite3.Row
-    connection.execute("PRAGMA foreign_keys = ON")
-    try:
-        yield connection
-        connection.commit()
-    except Exception:
-        connection.rollback()
-        raise
-    finally:
-        connection.close()
-
-
-def apply_schema(connection: sqlite3.Connection) -> None:
-    connection.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
-
-
-def now() -> str:
-    return datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
+__all__ = [
+    "Session", "connect", "apply_schema", "now", "sqlite_path", "describe_target",
+    "CollectionLog", "ensure_store", "upsert_orders", "upsert_daily", "replace_hourly",
+    "upsert_menu_sales", "upsert_cancels", "write_log", "save_raw_file",
+    "date_range_in_db", "count_rows",
+]
 
 
 # ── 매장 ──────────────────────────────────────────────────
 
-def ensure_store(connection: sqlite3.Connection, settings: Settings) -> int:
+def ensure_store(session: Session, settings: Settings) -> int:
     """매장 행을 만들거나 갱신하고 store_id를 돌려준다."""
-    connection.execute(
+    session.execute(
         """
-        INSERT INTO stores (store_code, store_name, pos_branch, pos_brandcode)
-        VALUES (?, ?, ?, ?)
+        INSERT INTO stores (store_code, store_name, pos_branch, pos_brandcode, created_at)
+        VALUES (?, ?, ?, ?, ?)
         ON CONFLICT(store_code) DO UPDATE SET
             store_name    = excluded.store_name,
             pos_branch    = excluded.pos_branch,
             pos_brandcode = excluded.pos_brandcode
         """,
         (settings.store_code, settings.store_name,
-         settings.pos_branch, settings.pos_brandcode),
+         settings.pos_branch, settings.pos_brandcode, now()),
     )
-    row = connection.execute(
+    row = session.execute(
         "SELECT store_id FROM stores WHERE store_code = ?", (settings.store_code,)
     ).fetchone()
     return int(row["store_id"])
@@ -84,8 +58,8 @@ def ensure_store(connection: sqlite3.Connection, settings: Settings) -> int:
 
 # ── 주문 ──────────────────────────────────────────────────
 
-def upsert_orders(connection: sqlite3.Connection, store_id: int, orders: list[Order]) -> int:
-    connection.executemany(
+def upsert_orders(session: Session, store_id: int, orders: list[Order]) -> int:
+    session.executemany(
         """
         INSERT INTO orders (
             store_id, order_no, biz_date, sold_at, paid_at,
@@ -116,8 +90,8 @@ def upsert_orders(connection: sqlite3.Connection, store_id: int, orders: list[Or
 
 # ── 집계 ──────────────────────────────────────────────────
 
-def upsert_daily(connection: sqlite3.Connection, store_id: int, daily: list[DailySales]) -> int:
-    connection.executemany(
+def upsert_daily(session: Session, store_id: int, daily: list[DailySales]) -> int:
+    session.executemany(
         """
         INSERT INTO daily_sales (
             store_id, biz_date, sales_amount, order_count, discount_amt, cancel_amt,
@@ -131,8 +105,10 @@ def upsert_daily(connection: sqlite3.Connection, store_id: int, daily: list[Dail
             is_closed=excluded.is_closed, updated_at=excluded.updated_at
         """,
         [
+            # is_closed 는 bool 로 넘긴다. PostgreSQL 은 BOOLEAN 컬럼에 int 를 받지 않고,
+            # SQLite 는 bool 을 0/1 로 바인딩하므로 양쪽 다 성립한다.
             (store_id, d.biz_date, d.sales_amount, d.order_count, d.discount_amt, d.cancel_amt,
-             d.vat_amt, d.cash_amt, d.card_amt, d.etc_amt, int(d.is_closed), now())
+             d.vat_amt, d.cash_amt, d.card_amt, d.etc_amt, bool(d.is_closed), now())
             for d in daily
         ],
     )
@@ -140,18 +116,18 @@ def upsert_daily(connection: sqlite3.Connection, store_id: int, daily: list[Dail
 
 
 def replace_hourly(
-    connection: sqlite3.Connection, store_id: int,
+    session: Session, store_id: int,
     hourly: list[HourlySales], biz_dates: list[str],
 ) -> int:
     """
     해당 날짜의 시간대 행을 지우고 다시 넣는다.
     주문이 취소로 사라지면 시간대 행도 없어져야 하는데 UPSERT만으로는 남는다.
     """
-    connection.executemany(
+    session.executemany(
         "DELETE FROM hourly_sales WHERE store_id = ? AND biz_date = ?",
         [(store_id, date) for date in biz_dates],
     )
-    connection.executemany(
+    session.executemany(
         """
         INSERT INTO hourly_sales (store_id, biz_date, hour, sales_amount, order_count)
         VALUES (?,?,?,?,?)
@@ -163,21 +139,21 @@ def replace_hourly(
 
 # ── 메뉴 ──────────────────────────────────────────────────
 
-def upsert_menu_sales(
-    connection: sqlite3.Connection, store_id: int, sales: list[MenuSale]
-) -> int:
+def upsert_menu_sales(session: Session, store_id: int, sales: list[MenuSale]) -> int:
     """메뉴 마스터를 먼저 갱신한 뒤 판매 실적을 넣는다."""
-    connection.executemany(
-        """
-        INSERT INTO menus (store_id, menu_code, menu_name, category, last_seen)
-        VALUES (?,?,?,?,?)
+    session.executemany(
+        # is_active 는 방언마다 리터럴이 다르다 (SQLite 1 / PostgreSQL TRUE).
+        f"""
+        INSERT INTO menus (store_id, menu_code, menu_name, category, first_seen, last_seen)
+        VALUES (?,?,?,?,?,?)
         ON CONFLICT(store_id, menu_code) DO UPDATE SET
             menu_name = excluded.menu_name,
             category  = excluded.category,
             last_seen = excluded.last_seen,
-            is_active = 1
+            is_active = {session.dialect.true}
         """,
-        [(store_id, s.menu_code, s.menu_name, s.category, s.biz_date) for s in sales],
+        # first_seen 은 INSERT 때만 들어간다 — DO UPDATE 에서 건드리지 않는다.
+        [(store_id, s.menu_code, s.menu_name, s.category, now(), s.biz_date) for s in sales],
     )
 
     codes = {s.menu_code for s in sales}
@@ -186,14 +162,14 @@ def upsert_menu_sales(
     placeholders = ",".join("?" * len(codes))
     id_by_code = {
         row["menu_code"]: row["menu_id"]
-        for row in connection.execute(
+        for row in session.execute(
             f"SELECT menu_id, menu_code FROM menus WHERE store_id = ? "
             f"AND menu_code IN ({placeholders})",
             (store_id, *codes),
-        )
+        ).fetchall()
     }
 
-    connection.executemany(
+    session.executemany(
         """
         INSERT INTO menu_sales (store_id, biz_date, menu_id, quantity, sales_amount)
         VALUES (?,?,?,?,?)
@@ -210,8 +186,8 @@ def upsert_menu_sales(
 
 # ── 취소 ──────────────────────────────────────────────────
 
-def upsert_cancels(connection: sqlite3.Connection, store_id: int, cancels: list[Cancel]) -> int:
-    connection.executemany(
+def upsert_cancels(session: Session, store_id: int, cancels: list[Cancel]) -> int:
+    session.executemany(
         """
         INSERT INTO order_cancels (
             store_id, biz_date, order_no, seq, cancel_type,
@@ -243,10 +219,10 @@ class CollectionLog:
 
 
 def write_log(
-    connection: sqlite3.Connection, log: CollectionLog,
+    session: Session, log: CollectionLog,
     status: str, record_count: int, error_message: str | None = None,
 ) -> None:
-    connection.execute(
+    session.execute(
         """
         INSERT INTO collection_logs (
             store_id, report_type, started_at, finished_at,
@@ -259,36 +235,44 @@ def write_log(
 
 
 def save_raw_file(
-    connection: sqlite3.Connection, store_id: int, report_type: str,
+    session: Session, store_id: int, report_type: str,
     target_from: str, target_to: str, content: bytes,
 ) -> Path:
-    """원본 HTML을 파일로 남기고 경로·해시만 DB에 기록한다."""
+    """
+    원본 HTML을 파일로 남기고 경로·해시만 DB에 기록한다.
+
+    ⚠ GitHub Actions에서 수집하면 이 파일은 런너가 사라질 때 함께 사라진다.
+      기록은 남지만 파일은 없다 — 재파싱이 필요하면 POS에서 다시 받아야 한다.
+    """
     directory = ROOT / "data" / "raw" / target_from[:4] / target_from[4:6]
     directory.mkdir(parents=True, exist_ok=True)
     path = directory / f"{report_type}_{target_from}_{target_to}.html"
     path.write_bytes(content)
 
-    connection.execute(
+    session.execute(
         """
         INSERT INTO raw_files (
-            store_id, report_type, target_from, target_to, file_path, byte_size, sha256
-        ) VALUES (?,?,?,?,?,?,?)
+            store_id, report_type, target_from, target_to,
+            file_path, byte_size, sha256, collected_at
+        ) VALUES (?,?,?,?,?,?,?,?)
         """,
         (store_id, report_type, target_from, target_to,
-         str(path.relative_to(ROOT)), len(content), hashlib.sha256(content).hexdigest()),
+         str(path.relative_to(ROOT)), len(content),
+         hashlib.sha256(content).hexdigest(), now()),
     )
     return path
 
 
 # ── 조회 (검증·API용) ──────────────────────────────────────
 
-def date_range_in_db(connection: sqlite3.Connection, store_id: int) -> tuple[str | None, str | None]:
-    row = connection.execute(
+def date_range_in_db(session: Session, store_id: int) -> tuple[str | None, str | None]:
+    row = session.execute(
         "SELECT MIN(biz_date) AS f, MAX(biz_date) AS t FROM daily_sales WHERE store_id = ?",
         (store_id,),
     ).fetchone()
     return (row["f"], row["t"]) if row else (None, None)
 
 
-def count_rows(connection: sqlite3.Connection, table: str) -> int:
-    return int(connection.execute(f"SELECT COUNT(*) AS n FROM {table}").fetchone()["n"])
+def count_rows(session: Session, table: str) -> int:
+    """`table`은 호출자가 정하는 상수다 — 외부 입력을 넣지 않는다."""
+    return int(session.execute(f"SELECT COUNT(*) AS n FROM {table}").fetchone()["n"])

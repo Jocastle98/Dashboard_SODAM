@@ -18,6 +18,13 @@ DATA_DIR = ROOT / "data"
 RAW_DIR = DATA_DIR / "probe"
 
 
+def _flag(value: str, default: bool = False) -> bool:
+    """빈 값이면 `default`. 'true/1/yes/on' 만 참으로 본다."""
+    if not value:
+        return default
+    return value.strip().lower() in ("1", "true", "yes", "on")
+
+
 def _parse_env_file(path: Path) -> dict[str, str]:
     """의존성 없이 .env를 읽는다 (python-dotenv 미설치 환경에서도 동작)."""
     values: dict[str, str] = {}
@@ -58,10 +65,25 @@ class Settings:
     dashboard_admin_id: str = field(default="", repr=False)
     dashboard_admin_pw: str = field(default="", repr=False)
     session_secret: str = field(default="", repr=False)
+    # 세션 쿠키에 Secure 를 붙일지 (NFR-SEC-01). HTTPS 배포에서는 반드시 True.
+    # 명시하지 않으면 Vercel 환경(VERCEL 환경변수)에서 자동으로 켜진다 —
+    # 깜빡해서 평문으로 쿠키가 오가는 일을 막기 위한 기본값이다.
+    session_cookie_secure: bool = False
 
     database_url: str = "sqlite:///./data/sodam.db"
     store_code: str = "SODAM_MAGOK"
     store_name: str = "소담촌 마곡점"
+
+    # 배포된 대시보드 주소. 바로가기 HTML(server/shortcut.py)이 이곳을 가리킨다.
+    dashboard_url: str = ""
+
+    # 수동 수집 버튼 (FN-205 / FR-COL-07)
+    # Vercel 함수는 10초에서 끊기고 POS 계정도 올리지 않는다 → 배포판은 Actions를 깨운다.
+    dispatch_repo: str = ""                       # "소유자/저장소"
+    dispatch_workflow: str = "collect.yml"
+    dispatch_ref: str = "main"
+    dispatch_token: str = field(default="", repr=False)
+    manual_collect_min_interval_sec: int = 600  # 연타·여러 탭으로 POS를 두드리지 않게
 
     collect_hour: int = 4
     collect_tz: str = "Asia/Seoul"
@@ -101,9 +123,19 @@ class Settings:
             dashboard_admin_id=get("DASHBOARD_ADMIN_ID"),
             dashboard_admin_pw=get("DASHBOARD_ADMIN_PW"),
             session_secret=get("SESSION_SECRET"),
+            session_cookie_secure=_flag(
+                get("SESSION_COOKIE_SECURE"), default=bool(os.environ.get("VERCEL"))
+            ),
             database_url=get("DATABASE_URL", "sqlite:///./data/sodam.db"),
             store_code=get("STORE_CODE", "SODAM_MAGOK"),
             store_name=get("STORE_NAME", "소담촌 마곡점"),
+            dashboard_url=get("DASHBOARD_URL"),
+            dispatch_repo=get("DISPATCH_REPO"),
+            dispatch_workflow=get("DISPATCH_WORKFLOW", "collect.yml"),
+            dispatch_ref=get("DISPATCH_REF", "main"),
+            dispatch_token=get("DISPATCH_TOKEN"),
+            manual_collect_min_interval_sec=int(
+                get("MANUAL_COLLECT_MIN_INTERVAL_SEC", "600") or 600),
             collect_hour=int(get("COLLECT_HOUR", "4") or 4),
             collect_tz=get("COLLECT_TZ", "Asia/Seoul"),
             request_delay_sec=float(get("REQUEST_DELAY_SEC", "1.0") or 1.0),

@@ -2,18 +2,18 @@
 
 from __future__ import annotations
 
-import sqlite3
 from datetime import datetime, timedelta, timezone
 
 from ..repository import system as repo
+from collector.db import Session
 
 DELAYED_AFTER_HOURS = 36   # FN-203 — 36시간 초과 시 지연
 FAILED_AFTER_HOURS = 72    # 72시간 초과 시 실패
 
 
-def status(connection: sqlite3.Connection, store_id: int) -> dict:
-    last = repo.last_collection(connection, store_id)
-    span = repo.data_range(connection, store_id)
+def status(session: Session, store_id: int) -> dict:
+    last = repo.last_collection(session, store_id)
+    span = repo.data_range(session, store_id)
 
     collected_at = last["finished_at"] if last else None
     return {
@@ -46,7 +46,7 @@ def _judge(collected_at: str | None) -> str:
     return "ok"
 
 
-def collection_history(connection: sqlite3.Connection, store_id: int, limit: int = 30) -> dict:
+def collection_history(session: Session, store_id: int, limit: int = 30) -> dict:
     """FN-501 — 관리자 화면의 수집 이력."""
     return {
         "data": [
@@ -60,6 +60,6 @@ def collection_history(connection: sqlite3.Connection, store_id: int, limit: int
                 "recordCount": row["record_count"],
                 "errorMessage": row["error_message"],
             }
-            for row in repo.recent_logs(connection, store_id, limit)
+            for row in repo.recent_logs(session, store_id, limit)
         ]
     }

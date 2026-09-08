@@ -57,12 +57,17 @@ export const api = {
   summary: (p) => request(`/api/summary?${query(p)}`),
   daily: (p) => request(`/api/sales/daily?${query(p)}`),
   weekday: (p) => request(`/api/sales/weekday?${query(p)}`),
+  weeklyCompare: (p) => request(`/api/sales/weekly-compare?${query(p)}`),
   hourly: (p) => request(`/api/sales/hourly?${query(p)}`),
   heatmap: (p) => request(`/api/sales/heatmap?${query(p)}`),
   menuRanking: (p, limit = 10, sortBy = 'sales') =>
     request(`/api/menu/ranking?${query({ ...p, limit, sortBy })}`),
   menuTrend: (code, p) => request(`/api/menu/${encodeURIComponent(code)}/trend?${query(p)}`),
   status: () => request('/api/system/status'),
+
+  // 수동 수집 (FN-205) — POS에 직접 가지 않는다. 백엔드가 대신 판단하고 실행한다.
+  collectStatus: () => request('/api/system/collect/status'),
+  collectNow: () => request('/api/system/collect', { method: 'POST' }),
 };
 
 /** 세션이 끊기면 로그인 화면으로 (FN-263). */

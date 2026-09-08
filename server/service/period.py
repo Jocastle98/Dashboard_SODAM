@@ -31,6 +31,22 @@ class Period:
         end = self.date_from - timedelta(days=1)
         return Period(end - timedelta(days=self.days - 1), end)
 
+    def shifted(self, days: int) -> "Period":
+        """길이를 유지한 채 통째로 옮긴다. `shifted(-7)` = 한 주 전 같은 요일 구간."""
+        return Period(self.date_from + timedelta(days=days),
+                      self.date_to + timedelta(days=days))
+
+
+def week_of(day: date) -> Period:
+    """
+    `day`가 속한 월~일 한 주 (FN-235).
+
+    '이번 주 / 지난 주'는 달력 기준이다. 최근 7일 같은 이동 구간이 아니다 —
+    사장님이 "지난주 수요일"이라고 할 때 가리키는 것은 달력의 그 날이다.
+    """
+    monday = day - timedelta(days=day.weekday())      # weekday(): 월=0 … 일=6
+    return Period(monday, monday + timedelta(days=6))
+
 
 class InvalidPeriod(ValueError):
     """FN-202 — 종료일 < 시작일, 범위 초과 등."""

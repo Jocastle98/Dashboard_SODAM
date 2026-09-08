@@ -59,13 +59,13 @@ def resolve_period(args: argparse.Namespace, settings: Settings) -> tuple[date, 
     return start, end
 
 
-def print_status(connection, store_id: int) -> None:
+def print_status(session, store_id: int) -> None:
     section("적재 현황")
-    first, last = repo.date_range_in_db(connection, store_id)
+    first, last = repo.date_range_in_db(session, store_id)
     log(f"  기간: {first or '(없음)'} ~ {last or '(없음)'}")
     for table in ("orders", "daily_sales", "hourly_sales", "menus", "menu_sales",
                   "order_cancels", "collection_logs"):
-        log(f"  {table:16} {repo.count_rows(connection, table):>8,} 행")
+        log(f"  {table:16} {repo.count_rows(session, table):>8,} 행")
 
 
 def main() -> int:
@@ -73,15 +73,15 @@ def main() -> int:
     args = parse_args()
     settings = Settings.load()
 
-    with repo.connect(settings) as connection:
-        repo.apply_schema(connection)
-        store_id = repo.ensure_store(connection, settings)
+    with repo.connect(settings) as session:
+        repo.apply_schema(session)
+        store_id = repo.ensure_store(session, settings)
 
         if args.init:
-            log(f"스키마 적용 완료 → {repo.database_path(settings)}")
+            log(f"스키마 적용 완료 → {repo.describe_target(settings)}")
             return 0
         if args.status:
-            print_status(connection, store_id)
+            print_status(session, store_id)
             return 0
 
         start, end = resolve_period(args, settings)
@@ -96,7 +96,7 @@ def main() -> int:
             log(f"\n{error}")
             return 1
 
-        result = Collector(settings, client, connection).collect(start, end)
+        result = Collector(settings, client, session).collect(start, end)
 
         section("결과")
         log(f"  주문 {result.orders:,}건 / 메뉴 {result.menu_rows:,}행 / 취소 {result.cancels:,}건")
@@ -107,7 +107,7 @@ def main() -> int:
             log(f"  ✗ 실패 {len(result.failures)}건:")
             for failure in result.failures[:10]:
                 log(f"     {failure}")
-        print_status(connection, store_id)
+        print_status(session, store_id)
         return 0 if result.ok else 2
 
 
