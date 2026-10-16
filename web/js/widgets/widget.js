@@ -8,7 +8,7 @@
 
 import { redirectOnUnauthorized } from '../api.js';
 
-export function createWidget({ root, load, render, isEmpty }) {
+export function createWidget({ root, load, render, isEmpty, emptyMessage }) {
   const element = document.getElementById(root);
   if (!element) return { refresh: async () => {} };
 
@@ -39,7 +39,9 @@ export function createWidget({ root, load, render, isEmpty }) {
     try {
       const data = await load(period);
       if (isEmpty && isEmpty(data)) {
-        show('empty', '선택한 기간에 데이터가 없습니다.');
+        // 빈 상태 문구는 위젯마다 다르다 — "데이터가 없다"와 "해당하는 것이 없다"는
+        // 사장님에게 전혀 다른 뜻이다 (FN-262).
+        show('empty', emptyMessage ?? '선택한 기간에 데이터가 없습니다.');
         return;
       }
       render(data, period);

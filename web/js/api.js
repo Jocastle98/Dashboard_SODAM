@@ -63,6 +63,22 @@ export const api = {
   menuRanking: (p, limit = 10, sortBy = 'sales') =>
     request(`/api/menu/ranking?${query({ ...p, limit, sortBy })}`),
   menuTrend: (code, p) => request(`/api/menu/${encodeURIComponent(code)}/trend?${query(p)}`),
+
+  // 신메뉴 (FN-252 / FN-253).
+  // 기준 저장에도 기간이 붙는다 — '3개월'은 조회 기간 종료일 기준으로 계산되므로
+  // 서버가 저장 직후 기준일을 돌려주려면 종료일을 알아야 한다.
+  newMenu: (p) => request(`/api/menu/new?${query(p)}`),
+  newMenuCatalog: (p) => request(`/api/menu/new/catalog?${query(p)}`),
+  saveNewMenuCriteria: (p, criteria) =>
+    request(`/api/menu/new/settings?${query(p)}`, {
+      method: 'PUT',
+      body: JSON.stringify(criteria),
+    }),
+  setNewMenuOverride: (code, isNew) =>
+    request(`/api/menu/new/overrides/${encodeURIComponent(code)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ isNew }),
+    }),
   status: () => request('/api/system/status'),
 
   // 수동 수집 (FN-205) — POS에 직접 가지 않는다. 백엔드가 대신 판단하고 실행한다.

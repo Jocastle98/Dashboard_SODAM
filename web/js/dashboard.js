@@ -10,6 +10,7 @@ import { dailyWidget } from './widgets/daily.js';
 import { hourlyWidget } from './widgets/hourly.js';
 import { kpiWidget } from './widgets/kpi.js';
 import { menuWidget } from './widgets/menu.js';
+import { newMenuWidget } from './widgets/newmenu.js';
 import { weekdayWidget } from './widgets/weekday.js';
 import { weeklyCompareWidget } from './widgets/weeklycompare.js';
 
@@ -32,7 +33,7 @@ function presetPeriod(preset) {
 }
 
 const widgets = [kpiWidget(), dailyWidget(), weeklyCompareWidget(),
-                 weekdayWidget(), hourlyWidget(), menuWidget()];
+                 weekdayWidget(), hourlyWidget(), newMenuWidget(), menuWidget()];
 
 let lastPeriod = presetPeriod('week');
 

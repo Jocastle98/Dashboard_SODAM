@@ -201,3 +201,58 @@ main { max-width: 1200px; margin: 0 auto; padding: 16px; }
 .collect-wrap { display: inline-flex; align-items: center; gap: 8px; }
 .collect-wrap .hint { font-size: 12px; color: var(--muted); }
 .collect-wrap button[disabled] { color: var(--muted); background: #F1F3F5; }
+
+/* ── 신메뉴 매출 (FN-252) + 기준 설정 (FN-253) ───────── */
+.nm-total {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px;
+  padding: 10px 12px; margin-bottom: 12px;
+  background: #FFF5F5; border-radius: 8px; font-size: 13px;
+}
+.nm-total b { font-size: 16px; }
+.nm-total-amt { font-size: 16px; font-weight: 700; color: var(--primary); }
+.nm-total-share { color: var(--muted); font-size: 12px; margin-left: auto; }
+
+/* 순위 자리에 번호 대신 첫 판매일을 둔다 — 신메뉴 표의 핵심 정보는 '언제부터'다 */
+.nm-row { grid-template-columns: 48px 1fr auto; }
+.nm-date { font-size: 11px; font-weight: 600; color: var(--muted); text-align: center; }
+.nm-zero { font-size: 12px; color: var(--muted); font-weight: 500; }
+.nm-badge {
+  font-size: 10px; font-weight: 700; padding: 1px 5px; border-radius: 4px;
+  margin-left: 5px; background: #E7F5FF; color: #1864AB; white-space: nowrap;
+}
+.nm-badge.auto { background: #FFE3E3; color: #C92A2A; }
+
+.nm-panel {
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px; margin-bottom: 12px; background: #FBFBFC;
+}
+.nm-label { font-size: 12px; font-weight: 600; color: var(--secondary); margin: 0 0 8px; }
+.nm-label + .nm-label, .nm-note + .nm-label { margin-top: 16px; }
+.nm-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.nm-since { display: inline-flex; gap: 6px; align-items: center; }
+.nm-since input {
+  padding: 6px 8px; font-size: 13px; border: 1px solid var(--border); border-radius: 7px;
+}
+.nm-note { font-size: 12px; color: var(--muted); margin: 8px 0 0; line-height: 1.6; }
+
+.nm-search {
+  width: 100%; padding: 7px 10px; font-size: 13px; margin-bottom: 8px;
+  border: 1px solid var(--border); border-radius: 7px; font-family: inherit;
+}
+/* 메뉴가 100개를 넘는다 — 패널이 화면을 밀어내지 않게 안에서만 스크롤한다 */
+.nm-picks {
+  max-height: 260px; overflow-y: auto; -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--border); border-radius: 7px; background: var(--card);
+}
+.nm-pick {
+  display: grid; grid-template-columns: 1fr auto auto; gap: 8px; align-items: center;
+  padding: 8px 10px; font-size: 13px;
+}
+.nm-pick + .nm-pick { border-top: 1px solid #F1F3F5; }
+.nm-pick.is-new { background: #FFF5F5; }
+.nm-pick-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nm-pick-date { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.nm-pick select {
+  padding: 4px 6px; font-size: 12px; font-family: inherit;
+  border: 1px solid var(--border); border-radius: 6px; background: #fff;
+}

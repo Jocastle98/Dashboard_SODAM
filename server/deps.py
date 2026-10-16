@@ -14,7 +14,7 @@ from fastapi import Cookie, Depends, HTTPException, Query, status
 from collector.config import Settings
 from collector.db import Row, Session
 
-from .db import open_connection
+from .db import open_connection, open_write_connection
 from .repository import system as system_repo
 from .repository import users as user_repo
 from .security import SESSION_COOKIE, LoginThrottle, SessionCodec
@@ -41,7 +41,34 @@ def get_connection() -> Iterator[Session]:
         yield session
 
 
+def get_write_connection() -> Iterator[Session]:
+    """
+    쓰기용 커넥션 (FN-253 신메뉴 설정 전용).
+
+    `get_connection` 과 나눠 둔다 — 라우터 시그니처만 보고 그 요청이 DB를
+    바꾸는지 알 수 있어야 한다. 이유는 `server/db.py` 의 주석에 있다.
+    """
+    with open_write_connection(get_settings()) as session:
+        yield session
+
+
 def get_store_id(session: Session = Depends(get_connection)) -> int:
+    return _resolve_store_id(session)
+
+
+def get_write_store_id(session: Session = Depends(get_write_connection)) -> int:
+    """
+    쓰기 요청용 매장 ID. **조회용과 같은 커넥션을 쓴다.**
+
+    `get_store_id` 를 그대로 쓰면 쓰기 요청 하나가 커넥션을 둘 연다 —
+    Neon 은 잠들었다 깨는 데 1~3초가 걸리므로 그 값이 두 배가 된다.
+    FastAPI 가 한 요청 안에서 같은 의존성을 캐시하므로, 라우터가
+    `get_write_connection` 을 함께 받으면 커넥션은 하나다.
+    """
+    return _resolve_store_id(session)
+
+
+def _resolve_store_id(session: Session) -> int:
     store_id = system_repo.store_id_by_code(session, get_settings().store_code)
     if store_id is None:
         raise HTTPException(

@@ -30,6 +30,7 @@ from collector.logutil import enable_utf8_output, log, section  # noqa: E402
 from server.db import open_connection  # noqa: E402
 from server.repository import system as system_repo  # noqa: E402
 from server.service import menu as menu_service  # noqa: E402
+from server.service import new_menu as new_menu_service  # noqa: E402
 from server.service import sales as sales_service  # noqa: E402
 from server.service import system as system_service  # noqa: E402
 from server.service.period import Period, parse_period  # noqa: E402
@@ -55,6 +56,7 @@ def build_payload(settings: Settings, period: Period) -> dict:
             "weekday": sales_service.weekday(session, store_id, period),
             "weeklyCompare": sales_service.weekly_compare(session, store_id, period),
             "hourly": sales_service.hourly(session, store_id, period),
+            "newMenu": new_menu_service.evaluate(session, store_id, period),
             "menu": menu_service.ranking(session, store_id, period, 10, "sales"),
             "menuByQuantity": menu_service.ranking(session, store_id, period, 10, "quantity"),
             "status": system_service.status(session, store_id),
@@ -76,12 +78,14 @@ def render(payload: dict) -> str:
         "weekday.js": (WEB / "js" / "widgets" / "weekday.js").read_text(encoding="utf-8"),
         "weeklycompare.js": (WEB / "js" / "widgets" / "weeklycompare.js").read_text(encoding="utf-8"),
         "hourly.js": (WEB / "js" / "widgets" / "hourly.js").read_text(encoding="utf-8"),
+        "newmenu.js": (WEB / "js" / "widgets" / "newmenu.js").read_text(encoding="utf-8"),
         "menu.js": (WEB / "js" / "widgets" / "menu.js").read_text(encoding="utf-8"),
     }
 
     body = _extract_body(dashboard)
     body = body.replace('<button class="btn-ghost" id="logout">로그아웃</button>', "")
     body = _strip_collect_button(body)
+    body = _strip_new_menu_settings(body)
     body = _replace_filters_with_notice(body)
 
     return _TEMPLATE.format(
@@ -110,6 +114,23 @@ def _strip_collect_button(body: str) -> str:
         return body
     end = body.index("</span>", body.index("</button>", start)) + len("</span>")
     return body[:start] + body[end:]
+
+
+def _strip_new_menu_settings(body: str) -> str:
+    """
+    신메뉴 기준 설정(FN-253)은 서버가 있어야 동작한다 — 설정을 DB에 저장하기 때문이다.
+    스냅샷에서는 버튼과 패널을 없앤다. 수집 버튼과 같은 이유로, 눌러도 아무 일이
+    없는 버튼을 남겨 두지 않는다. 생성 시점에 적용돼 있던 기준으로 계산된 목록은
+    그대로 보인다.
+    """
+    for marker, closing in (("<button class=\"chip\" data-settings-toggle", "</button>"),
+                            ("<div data-panel", "</div>")):
+        start = body.find(marker)
+        if start < 0:
+            continue
+        end = body.index(closing, start) + len(closing)
+        body = body[:start] + body[end:]
+    return body
 
 
 def _replace_filters_with_notice(body: str) -> str:
@@ -166,6 +187,7 @@ _TEMPLATE = """<!DOCTYPE html>
     weekday: async () => DATA.weekday,
     weeklyCompare: async () => DATA.weeklyCompare,
     hourly: async () => DATA.hourly,
+    newMenu: async () => DATA.newMenu,
     menuRanking: async (_p, _limit, sortBy) =>
       (sortBy === 'quantity' ? DATA.menuByQuantity : DATA.menu),
     status: async () => DATA.status,
@@ -190,7 +212,7 @@ _TEMPLATE = """<!DOCTYPE html>
 
   const period = DATA.period;
   [kpiWidget(), dailyWidget(), weeklyCompareWidget(),
-   weekdayWidget(), hourlyWidget(), menuWidget()]
+   weekdayWidget(), hourlyWidget(), newMenuWidget(), menuWidget()]
     .forEach((w) => w.refresh(period));
 }})();
 </script>

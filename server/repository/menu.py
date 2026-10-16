@@ -103,3 +103,55 @@ def find_name(session: Session, store_id: int, menu_code: str) -> str | None:
         (store_id, menu_code),
     ).fetchone()
     return row["menu_name"] if row else None
+
+
+# ── 신메뉴 판정의 근거 (FN-252) ─────────────────────────
+
+def catalog(session: Session, store_id: int,
+            date_from: str, date_to: str) -> list[Row]:
+    """
+    메뉴마다 **첫 판매일**과 **조회 기간 실적**을 한 번에 가져온다.
+
+    ⚠ `menus.first_seen` 을 쓰지 않는다. 그 컬럼은 `collector/repository.py` 가
+    `now()`(수집 시각)를 넣기 때문에, 12개월 백필을 한 번에 돌린 DB에서는
+    100개 메뉴의 값이 전부 같은 날이다 — 신메뉴 판별에 쓸 수 없다.
+
+    대신 `MIN(menu_sales.biz_date)` 를 쓴다. 이것도 POS **등록일**은 아니고
+    **첫 판매일**이다. 한계는 service/new_menu.py 가 워밍업 구간 제외와
+    수동 지정으로 메운다.
+
+    기간 실적은 WHERE 가 아니라 CASE 로 거른다 — WHERE 로 거르면 그 기간에
+    안 팔린 메뉴가 행째로 사라져서 첫 판매일을 알 수 없고, "신메뉴인데 이번 기간엔
+    0원" 이라는 사실도 화면에서 지워진다.
+    """
+    return session.execute(
+        """
+        SELECT m.menu_code, m.menu_name, m.category,
+               MIN(ms.biz_date) AS first_sold,
+               MAX(ms.biz_date) AS last_sold,
+               COALESCE(SUM(CASE WHEN ms.biz_date BETWEEN ? AND ?
+                                 THEN ms.quantity END), 0)     AS quantity,
+               COALESCE(SUM(CASE WHEN ms.biz_date BETWEEN ? AND ?
+                                 THEN ms.sales_amount END), 0) AS sales
+        FROM menu_sales ms
+        JOIN menus m ON m.menu_id = ms.menu_id
+        WHERE ms.store_id = ?
+        GROUP BY m.menu_id
+        ORDER BY first_sold DESC, m.menu_code ASC
+        """,
+        (date_from, date_to, date_from, date_to, store_id),
+    ).fetchall()
+
+
+def first_data_date(session: Session, store_id: int) -> str | None:
+    """
+    메뉴 실적을 가진 가장 이른 날. **관측 시작일**이다.
+
+    이 날짜 언저리에 처음 팔린 메뉴는 "새로 생긴 메뉴" 가 아니라
+    "관측을 그때부터 시작했을 뿐" 이다. 둘을 구분할 근거가 데이터에 없다.
+    """
+    row = session.execute(
+        "SELECT MIN(biz_date) AS first FROM menu_sales WHERE store_id = ?",
+        (store_id,),
+    ).fetchone()
+    return row["first"] if row and row["first"] else None

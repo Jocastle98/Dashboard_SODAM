@@ -21,7 +21,7 @@ from fastapi.responses import FileResponse, JSONResponse  # noqa: E402
 from fastapi.staticfiles import StaticFiles  # noqa: E402
 
 from collector.config import ROOT  # noqa: E402
-from server.routers import auth, data, system  # noqa: E402
+from server.routers import auth, data, new_menu, system  # noqa: E402
 
 WEB_DIR = ROOT / "web"
 
@@ -36,6 +36,7 @@ def create_app() -> FastAPI:
 
     app.include_router(auth.router)
     app.include_router(data.router)
+    app.include_router(new_menu.router)
     app.include_router(system.router)
 
     _install_error_handlers(app)

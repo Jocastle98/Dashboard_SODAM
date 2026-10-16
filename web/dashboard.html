@@ -93,6 +93,22 @@
       </section>
     </div>
 
+    <!-- 신메뉴 매출 (FN-252) — 메뉴 순위 '위'에 둔다.
+         새로 들인 메뉴는 아직 양이 적어 TOP 10에 올라오지 않기 때문이다. -->
+    <section class="card" id="new-menu">
+      <div class="card-head">
+        <h2>신메뉴 매출</h2>
+        <div class="spacer"></div>
+        <span class="hint"></span>
+        <button class="chip" data-settings-toggle>기준 설정</button>
+      </div>
+      <!-- 설정 패널은 data-body 밖에 둔다 — 신메뉴가 하나도 없는 '빈 상태'에서도
+           사장님이 기준을 바꿀 수 있어야 한다. -->
+      <div data-panel class="nm-panel hidden"></div>
+      <div data-body></div>
+      <div data-state class="state"></div>
+    </section>
+
     <!-- 메뉴별 매출 TOP 10 (FN-250) -->
     <section class="card" id="menu">
       <div class="card-head">

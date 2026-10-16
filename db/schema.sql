@@ -165,3 +165,39 @@ CREATE TABLE IF NOT EXISTS raw_files (
   sha256       TEXT,
   collected_at TEXT
 );
+
+-- ── 화면 설정 (FN-253) ────────────────────────────────
+-- 사장님이 화면에서 바꾸는 값. 수집 결과가 아니라 **취향**이므로
+-- 재수집해도 덮이지 않아야 하고, 기기가 바뀌어도 따라와야 한다.
+-- 그래서 브라우저(localStorage)가 아니라 DB에 둔다.
+--
+-- 값은 JSON 문자열이다. 설정마다 테이블을 늘리지 않기 위함이며,
+-- 해석 책임은 `server/service/new_menu.py` 같은 서비스 모듈 한 곳에 있다.
+--
+-- `key` / `value` 를 그대로 쓰지 않는다 — SQL 표준 예약어라 방언마다 취급이 다르다.
+CREATE TABLE IF NOT EXISTS app_settings (
+  store_id      INTEGER NOT NULL REFERENCES stores(store_id),
+  setting_key   TEXT    NOT NULL,          -- 'new_menu'
+  setting_value TEXT    NOT NULL,          -- JSON
+  updated_at    TEXT,
+  PRIMARY KEY (store_id, setting_key)
+);
+
+-- ── 신메뉴 수동 지정/제외 (FN-253) ────────────────────
+-- 자동 판정은 `MIN(menu_sales.biz_date)` = **첫 판매일**을 근거로 한다.
+-- 그것은 POS 등록일이 아니다 — 드물게 팔리는 오래된 메뉴가 신메뉴로 잡히고,
+-- 등록만 하고 아직 안 팔린 메뉴는 잡히지 않는다. 사장님만 아는 사실이다.
+--
+-- is_new = TRUE  → 자동 판정이 뭐라 하든 신메뉴로 센다 (워밍업 제외도 넘어선다)
+-- is_new = FALSE → 자동 판정이 잡았어도 제외한다
+-- 행이 없음      → 자동 판정에 맡긴다
+--
+-- menu_id 가 아니라 menu_code 로 잡는다 — `menu_alias.py` 와 같은 이유다.
+-- DB를 다시 적재해 menu_id 가 바뀌어도 지정이 살아남는다.
+CREATE TABLE IF NOT EXISTS menu_overrides (
+  store_id   INTEGER NOT NULL REFERENCES stores(store_id),
+  menu_code  TEXT    NOT NULL,
+  is_new     INTEGER NOT NULL,             -- 0 제외 / 1 지정
+  updated_at TEXT,
+  PRIMARY KEY (store_id, menu_code)
+);

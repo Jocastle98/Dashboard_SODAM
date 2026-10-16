@@ -43,6 +43,8 @@ TABLES = [
     "order_cancels",
     "collection_logs",
     "raw_files",
+    "app_settings",
+    "menu_overrides",
 ]
 
 # 대리키가 있는 테이블 → 옮긴 뒤 시퀀스를 맞춰야 한다
@@ -58,6 +60,7 @@ IDENTITY_COLUMNS = {
 BOOLEAN_COLUMNS = {
     "daily_sales": ("is_closed",),
     "menus": ("is_active",),
+    "menu_overrides": ("is_new",),
 }
 
 BATCH = 1_000
