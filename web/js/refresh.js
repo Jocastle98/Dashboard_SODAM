@@ -24,9 +24,11 @@ export function collectButton({ onFinished }) {
 
   let polling = false;
   let cooldownTimer = null;
+  let elapsedTimer = null;
 
   function paint(state) {
     clearTimeout(cooldownTimer);
+    stopElapsed();
     button.hidden = !state.available;
     if (!state.available) {
       message.textContent = '';
@@ -36,7 +38,7 @@ export function collectButton({ onFinished }) {
     if (state.running) {
       button.disabled = true;
       button.textContent = '수집 중…';
-      message.textContent = 'POS에서 받아오는 중입니다 (30초쯤)';
+      startElapsed(state.startedAt);
       return;
     }
 
@@ -51,6 +53,27 @@ export function collectButton({ onFinished }) {
 
     button.disabled = false;
     message.textContent = state.ok === false ? state.message : '';
+  }
+
+  /**
+   * 얼마나 걸릴지는 GitHub Actions 대기열에 따라 달라진다 — 예상 시간을 적어 두면
+   * 또 어긋나므로 시작 시각부터 흐른 시간을 그대로 보여준다.
+   * 시작 시각은 서버가 준다 (local은 스레드 시작, github은 run의 created_at).
+   */
+  function startElapsed(startedAt) {
+    const base = Date.parse(startedAt ?? '') || Date.now();
+    const draw = () => {
+      // 브라우저 시계가 조금 앞서 있어도 음수가 보이지 않게 한다
+      const seconds = Math.max(0, Math.round((Date.now() - base) / 1_000));
+      message.textContent = `POS에서 받아오는 중입니다 (${elapsed(seconds)} 경과)`;
+    };
+    draw();
+    elapsedTimer = setInterval(draw, 1_000);
+  }
+
+  function stopElapsed() {
+    clearInterval(elapsedTimer);
+    elapsedTimer = null;
   }
 
   async function refreshState() {
@@ -82,8 +105,8 @@ export function collectButton({ onFinished }) {
         continue;                            // 일시적 오류로 폴링을 끊지 않는다
       }
 
-      const elapsed = Date.now() - since;
-      if (!state.running && elapsed > POLL_GRACE_MS) {
+      const waited = Date.now() - since;
+      if (!state.running && waited > POLL_GRACE_MS) {
         polling = false;
         paint(state);
         message.textContent = state.ok === false
@@ -92,8 +115,9 @@ export function collectButton({ onFinished }) {
         onFinished();
         return;
       }
-      if (elapsed > POLL_TIMEOUT_MS) {
+      if (waited > POLL_TIMEOUT_MS) {
         polling = false;
+        stopElapsed();
         button.disabled = false;
         button.textContent = '지금 수집';
         message.textContent = '확인이 오래 걸립니다. 잠시 후 새로고침해 주세요.';
@@ -118,6 +142,14 @@ export function collectButton({ onFinished }) {
   });
 
   return { start: refreshState };
+}
+
+function elapsed(seconds) {
+  if (seconds < 60) return `${seconds}초`;
+  const rest = seconds % 60;
+  return rest === 0
+    ? `${Math.floor(seconds / 60)}분`
+    : `${Math.floor(seconds / 60)}분 ${rest}초`;
 }
 
 function minutes(seconds) {
