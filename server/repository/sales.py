@@ -88,6 +88,30 @@ def by_weekday(session: Session, store_id: int,
     ).fetchall()
 
 
+def by_year(session: Session, store_id: int) -> list:
+    """
+    연도별 합계 (FN-236). 기간 필터와 무관하게 보유 데이터 전체를 본다.
+    biz_date 는 'YYYY-MM-DD' 텍스트라 SUBSTR 가 양쪽 방언에서 같게 동작한다.
+    date_from/date_to 는 그 해에 실제로 가진 첫날·마지막날 — 부분 연도 판정에 쓴다.
+    """
+    return session.execute(
+        """
+        SELECT SUBSTR(biz_date, 1, 4)              AS year,
+               MIN(biz_date)                       AS date_from,
+               MAX(biz_date)                       AS date_to,
+               COALESCE(SUM(sales_amount), 0)      AS sales,
+               COALESCE(SUM(order_count), 0)       AS orders,
+               SUM(CASE WHEN is_closed = {false} AND sales_amount > 0
+                        THEN 1 ELSE 0 END)         AS open_days
+        FROM daily_sales
+        WHERE store_id = ?
+        GROUP BY 1
+        ORDER BY 1
+        """.format(false=session.dialect.false),
+        (store_id,),
+    ).fetchall()
+
+
 def by_hour(session: Session, store_id: int,
             date_from: str, date_to: str) -> list:
     return session.execute(

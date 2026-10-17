@@ -13,6 +13,7 @@ import { menuWidget } from './widgets/menu.js';
 import { newMenuWidget } from './widgets/newmenu.js';
 import { weekdayWidget } from './widgets/weekday.js';
 import { weeklyCompareWidget } from './widgets/weeklycompare.js';
+import { yearlyWidget } from './widgets/yearly.js';
 
 const iso = (date) => date.toISOString().slice(0, 10);
 const shift = (date, days) => new Date(date.getTime() + days * 86_400_000);
@@ -33,7 +34,7 @@ function presetPeriod(preset) {
 }
 
 const widgets = [kpiWidget(), dailyWidget(), weeklyCompareWidget(),
-                 weekdayWidget(), hourlyWidget(), newMenuWidget(), menuWidget()];
+                 weekdayWidget(), hourlyWidget(), yearlyWidget(), newMenuWidget(), menuWidget()];
 
 let lastPeriod = presetPeriod('week');
 

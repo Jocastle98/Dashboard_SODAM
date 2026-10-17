@@ -38,6 +38,8 @@ def parse_args() -> argparse.Namespace:
                         help="과거 BACKFILL_MONTHS개월 수집 (FR-COL-03)")
     parser.add_argument("--from", dest="date_from", help="시작일 YYYY-MM-DD")
     parser.add_argument("--to", dest="date_to", help="종료일 YYYY-MM-DD")
+    parser.add_argument("--skip-menu", action="store_true",
+                        help="메뉴 리포트 생략 — 주문·취소만 (수년 소급용, FN-236)")
     return parser.parse_args()
 
 
@@ -87,8 +89,9 @@ def main() -> int:
         start, end = resolve_period(args, settings)
         days = (end - start).days + 1
         section(f"수집 {start} ~ {end}  ({days}일)")
+        menu_requests = 0 if args.skip_menu else days
         log(f"  예상 요청 수: 주문 {_months(start, end)}회 + 취소 {_months(start, end)}회 "
-            f"+ 메뉴 {days}회 ≈ {_months(start, end) * 2 + days}초")
+            f"+ 메뉴 {menu_requests}회 ≈ {_months(start, end) * 2 + menu_requests}초")
 
         try:
             client = PosClient(settings, create_session(settings))
@@ -96,7 +99,8 @@ def main() -> int:
             log(f"\n{error}")
             return 1
 
-        result = Collector(settings, client, session).collect(start, end)
+        result = Collector(settings, client, session).collect(
+            start, end, include_menu=not args.skip_menu)
 
         section("결과")
         log(f"  주문 {result.orders:,}건 / 메뉴 {result.menu_rows:,}행 / 취소 {result.cancels:,}건")

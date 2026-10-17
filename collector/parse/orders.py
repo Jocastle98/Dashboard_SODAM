@@ -90,7 +90,7 @@ def _to_order(row: list[str]) -> Order:
 
     return Order(
         order_no=order_no,
-        biz_date=biz_date_from_order_no(order_no),
+        biz_date=biz_date_from_order_no(order_no, fallback=sold_at),
         sold_at=sold_at,
         paid_at=to_datetime(row[PAID_AT]),
         total_amt=to_int(row[TOTAL]),

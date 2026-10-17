@@ -3,7 +3,7 @@
  * 위젯은 데이터만 넘기고 스타일은 신경 쓰지 않는다.
  */
 
-import { axisWon, WON, COUNT } from './format.js';
+import { axisWon, WON, COUNT, shortDate } from './format.js';
 
 export const COLORS = {
   primary: '#C8102E',
@@ -133,6 +133,33 @@ export function hourlyChart(canvasId, rows, peakHours = []) {
     options: baseOptions((ctx) => {
       const row = rows[ctx.dataIndex];
       return [`매출 ${WON(row.sales)}`, `결제 ${COUNT(row.orders)}`];
+    }),
+  });
+}
+
+/**
+ * 연도별 매출 (FN-236). 가장 최근 해를 강조한다.
+ * 1년을 다 채우지 못한 해는 막대 아래에 실제 기간을 적는다 — 합계만 보면
+ * 진행 중인 해가 늘 진 것처럼 보이기 때문이다.
+ */
+export function yearlyChart(canvasId, rows) {
+  const last = rows.length - 1;
+  return mount(canvasId, {
+    type: 'bar',
+    data: {
+      labels: rows.map((r) => (r.isPartial
+        ? [`${r.year}년`, `${shortDate(r.from)}~${shortDate(r.to)}`]
+        : `${r.year}년`)),
+      datasets: [{
+        data: rows.map((r) => r.sales),
+        backgroundColor: rows.map((_, i) => (i === last ? COLORS.primary : '#FFC9C9')),
+        borderRadius: 5,
+      }],
+    },
+    options: baseOptions((ctx) => {
+      const row = rows[ctx.dataIndex];
+      return [`매출 ${WON(row.sales)}`, `영업 ${row.openDays}일`,
+              `일평균 ${WON(row.avgDaily)}`, `결제 ${COUNT(row.orders)}`];
     }),
   });
 }

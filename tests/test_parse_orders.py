@@ -112,3 +112,10 @@ def test_changed_column_order_raises():
 def test_missing_table_raises():
     with pytest.raises(ParseError):
         parse_orders("<html><body><p>데이터 없음</p></body></html>")
+
+
+def test_order_no_without_year_falls_back_to_sold_at():
+    """docs/03 5-2 — POS 가 2024-10-15 판매분에 `101512114503` 을 줬다. 1015년이 되면 안 된다."""
+    from collector.parse.tables import biz_date_from_order_no
+    assert biz_date_from_order_no("101512114503", fallback="2024-10-15 12:11") == "2024-10-15"
+    assert biz_date_from_order_no("202410150042", fallback="2024-10-16 00:30") == "2024-10-15"

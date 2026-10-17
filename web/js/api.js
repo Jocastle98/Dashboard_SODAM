@@ -59,6 +59,8 @@ export const api = {
   weekday: (p) => request(`/api/sales/weekday?${query(p)}`),
   weeklyCompare: (p) => request(`/api/sales/weekly-compare?${query(p)}`),
   hourly: (p) => request(`/api/sales/hourly?${query(p)}`),
+  // 연도별 (FN-236) — 기간 필터를 받지 않는다. 보유 데이터 전체
+  yearly: () => request('/api/sales/yearly'),
   heatmap: (p) => request(`/api/sales/heatmap?${query(p)}`),
   menuRanking: (p, limit = 10, sortBy = 'sales') =>
     request(`/api/menu/ranking?${query({ ...p, limit, sortBy })}`),

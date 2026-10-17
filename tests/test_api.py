@@ -155,6 +155,46 @@ def test_hourly_is_unavailable_for_empty_period(auth_client):
     assert body["available"] is False
 
 
+# ── 연도별 (FN-236) ────────────────────────────────────────
+
+def test_yearly_lists_each_year_once_in_order(auth_client):
+    data = auth_client.get("/api/sales/yearly").json()["data"]
+    years = [row["year"] for row in data]
+    assert years == sorted(set(years))
+    assert all(str(row["year"]) == row["from"][:4] == row["to"][:4] for row in data)
+
+
+def test_yearly_totals_match_the_summary_of_each_year(auth_client):
+    """연도 합계가 같은 기간의 KPI 합계와 일치해야 한다 — 두 경로가 다른 숫자를 내면 안 된다."""
+    for row in auth_client.get("/api/sales/yearly").json()["data"]:
+        summary = auth_client.get(f"/api/summary?from={row['from']}&to={row['to']}").json()
+        assert summary["current"]["totalSales"] == row["sales"]
+        assert summary["current"]["orderCount"] == row["orders"]
+        assert summary["period"]["businessDays"] == row["openDays"]
+
+
+def test_yearly_marks_partial_years_and_averages_over_open_days(auth_client):
+    """진행 중인 해는 합계만 보면 늘 진 것처럼 보인다 — 부분 연도 표시와 일평균을 준다."""
+    data = auth_client.get("/api/sales/yearly").json()["data"]
+    assert data[-1]["isPartial"] is True          # 올해는 아직 끝나지 않았다
+    for row in data:
+        if row["openDays"]:
+            assert row["avgDaily"] == row["sales"] // row["openDays"]
+
+
+def test_yearly_marks_a_year_complete_only_once_the_next_year_has_data(auth_client):
+    """FN-236 — 화면은 마감된 해만 그린다. 올해는 이듬해 첫 수집 때 저절로 마감된다."""
+    data = auth_client.get("/api/sales/yearly").json()["data"]
+    assert data[-1]["isComplete"] is False
+    assert all(row["isComplete"] for row in data[:-1])
+
+
+def test_yearly_ignores_the_period_filter(auth_client):
+    unfiltered = auth_client.get("/api/sales/yearly").json()
+    filtered = auth_client.get(f"/api/sales/yearly?{PERIOD}").json()
+    assert unfiltered == filtered
+
+
 # ── 메뉴 (TC-12) ───────────────────────────────────────────
 
 def test_menu_ranking_shares_are_consistent(auth_client):

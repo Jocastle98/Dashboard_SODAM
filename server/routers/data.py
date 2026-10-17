@@ -56,6 +56,15 @@ def sales_weekly_compare(
     return sales_service.weekly_compare(session, store_id, period)
 
 
+@router.get("/sales/yearly")
+def sales_yearly(
+    session: Session = Depends(get_connection),
+    store_id: int = Depends(get_store_id),
+):
+    """연도별 매출 (FN-236) — 기간 필터를 받지 않는다. 보유 데이터 전체."""
+    return sales_service.yearly(session, store_id)
+
+
 @router.get("/sales/hourly")
 def sales_hourly(
     period: Period = Depends(period_param),

@@ -56,6 +56,7 @@ def build_payload(settings: Settings, period: Period) -> dict:
             "weekday": sales_service.weekday(session, store_id, period),
             "weeklyCompare": sales_service.weekly_compare(session, store_id, period),
             "hourly": sales_service.hourly(session, store_id, period),
+            "yearly": sales_service.yearly(session, store_id),
             "newMenu": new_menu_service.evaluate(session, store_id, period),
             "menu": menu_service.ranking(session, store_id, period, 10, "sales"),
             "menuByQuantity": menu_service.ranking(session, store_id, period, 10, "quantity"),
@@ -78,6 +79,7 @@ def render(payload: dict) -> str:
         "weekday.js": (WEB / "js" / "widgets" / "weekday.js").read_text(encoding="utf-8"),
         "weeklycompare.js": (WEB / "js" / "widgets" / "weeklycompare.js").read_text(encoding="utf-8"),
         "hourly.js": (WEB / "js" / "widgets" / "hourly.js").read_text(encoding="utf-8"),
+        "yearly.js": (WEB / "js" / "widgets" / "yearly.js").read_text(encoding="utf-8"),
         "newmenu.js": (WEB / "js" / "widgets" / "newmenu.js").read_text(encoding="utf-8"),
         "menu.js": (WEB / "js" / "widgets" / "menu.js").read_text(encoding="utf-8"),
     }
@@ -187,6 +189,7 @@ _TEMPLATE = """<!DOCTYPE html>
     weekday: async () => DATA.weekday,
     weeklyCompare: async () => DATA.weeklyCompare,
     hourly: async () => DATA.hourly,
+    yearly: async () => DATA.yearly,
     newMenu: async () => DATA.newMenu,
     menuRanking: async (_p, _limit, sortBy) =>
       (sortBy === 'quantity' ? DATA.menuByQuantity : DATA.menu),
@@ -212,7 +215,7 @@ _TEMPLATE = """<!DOCTYPE html>
 
   const period = DATA.period;
   [kpiWidget(), dailyWidget(), weeklyCompareWidget(),
-   weekdayWidget(), hourlyWidget(), newMenuWidget(), menuWidget()]
+   weekdayWidget(), hourlyWidget(), yearlyWidget(), newMenuWidget(), menuWidget()]
     .forEach((w) => w.refresh(period));
 }})();
 </script>

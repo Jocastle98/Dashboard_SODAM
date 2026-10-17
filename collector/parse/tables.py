@@ -7,6 +7,8 @@
 
 from __future__ import annotations
 
+from datetime import date
+
 import re
 from dataclasses import dataclass
 
@@ -168,10 +170,26 @@ def normalize_order_no(text: str) -> str:
     return digits
 
 
-def biz_date_from_order_no(order_no: str) -> str:
-    """주문번호 앞 8자가 영업일자다. `'202608150001'` → `'2026-08-15'`."""
+def biz_date_from_order_no(order_no: str, fallback: str | None = None) -> str:
+    """
+    주문번호 앞 8자가 영업일자다. `'202608150001'` → `'2026-08-15'`.
+
+    POS 가 연도를 빼먹은 번호를 줄 때가 있다 — 2024-10-15 판매분에 `101512114503`
+    (월일시분+순번). 그대로 쓰면 영업일이 1015-12-11 이 된다 (docs/03 5-2).
+    앞 8자가 날짜가 아니면 fallback(판매시각) 의 날짜를 쓴다.
+    """
     digits = normalize_order_no(order_no)
-    return f"{digits[:4]}-{digits[4:6]}-{digits[6:8]}"
+    candidate = f"{digits[:4]}-{digits[4:6]}-{digits[6:8]}"
+    if fallback and not _is_plausible_date(candidate):
+        return fallback[:10]
+    return candidate
+
+
+def _is_plausible_date(iso: str) -> bool:
+    try:
+        return date.fromisoformat(iso).year >= 2000
+    except ValueError:
+        return False
 
 
 _DATETIME = re.compile(r"(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})")

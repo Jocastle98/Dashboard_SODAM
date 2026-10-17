@@ -178,6 +178,36 @@ def _compare_day(day: date, row: Row | None) -> dict:
     }
 
 
+def yearly(session: Session, store_id: int) -> dict:
+    """
+    GET /api/sales/yearly (FN-236). 기간 필터와 무관하다.
+
+    첫 해와 올해는 1년을 다 채우지 못한다 — isPartial 로 알리고 영업일·일평균을
+    함께 준다. 합계만 나란히 두면 진행 중인 해가 늘 진 것처럼 보인다.
+
+    isComplete — **다음 해 데이터가 하나라도 있으면** 그 해는 마감됐다.
+    오늘 날짜로 판정하지 않는다: 12/31 이 아직 수집되지 않았는데 막대가 먼저 뜨면 안 된다.
+    화면은 마감된 해만 그리므로 올해는 이듬해 첫 수집 때 손대지 않아도 저절로 붙는다.
+    """
+    years = []
+    for row in repo.by_year(session, store_id):
+        year = row["year"]
+        sales, open_days = int(row["sales"]), int(row["open_days"] or 0)
+        years.append({
+            "year": int(year),
+            "from": row["date_from"],
+            "to": row["date_to"],
+            "sales": sales,
+            "orders": int(row["orders"]),
+            "openDays": open_days,
+            "avgDaily": safe_divide(sales, open_days) if open_days else None,
+            "isPartial": (row["date_from"], row["date_to"]) != (f"{year}-01-01", f"{year}-12-31"),
+        })
+    for current, following in zip(years, years[1:] + [None]):
+        current["isComplete"] = following is not None
+    return {"available": any(y["sales"] for y in years), "data": years}
+
+
 def hourly(session: Session, store_id: int, period: Period) -> dict:
     """
     GET /api/sales/hourly.

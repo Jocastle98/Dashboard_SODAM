@@ -72,12 +72,17 @@ class Collector:
         self.store_id = repo.ensure_store(session, settings)
 
     # ── 공개 진입점 ─────────────────────────────────────
-    def collect(self, start: date, end: date) -> CollectResult:
+    def collect(self, start: date, end: date, include_menu: bool = True) -> CollectResult:
+        """
+        include_menu=False — 주문·취소만 받는다 (FN-236 연도별 매출 소급).
+        메뉴 리포트는 하루 1요청이라 수년을 소급하면 1,700요청이 넘는다.
+        매출 합계·시간대는 주문에서 나오므로 메뉴 없이도 정확하다.
+        """
         result = CollectResult()
 
         orders = self._collect_orders(start, end, result)
         cancels = self._collect_cancels(start, end, result)
-        menu_total_by_date = self._collect_menu(start, end, result)
+        menu_total_by_date = self._collect_menu(start, end, result) if include_menu else {}
 
         self._aggregate(orders, cancels, start, end, result)
         self._check_quality(orders, menu_total_by_date, start, end, result)
