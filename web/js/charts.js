@@ -3,7 +3,7 @@
  * 위젯은 데이터만 넘기고 스타일은 신경 쓰지 않는다.
  */
 
-import { axisWon, WON, COUNT, shortDate } from './format.js';
+import { axisWon, WON, COUNT, shortWon, shortDate } from './format.js';
 
 export const COLORS = {
   primary: '#C8102E',
@@ -144,6 +144,14 @@ export function hourlyChart(canvasId, rows, peakHours = []) {
  */
 export function yearlyChart(canvasId, rows) {
   const last = rows.length - 1;
+  const options = baseOptions((ctx) => {
+    const row = rows[ctx.dataIndex];
+    return [`매출 ${WON(row.sales)}`, `영업 ${row.openDays}일`,
+            `일평균 ${WON(row.avgDaily)}`, `결제 ${COUNT(row.orders)}`];
+  });
+  // 마감된 해는 숫자가 바뀌지 않는다 — 툴팁을 누르지 않아도 읽히게 막대 위에 적는다.
+  // 라벨이 잘리지 않도록 위쪽에 여백을 둔다.
+  options.layout = { padding: { top: 34 } };   // 두 줄 라벨까지 들어갈 여백
   return mount(canvasId, {
     type: 'bar',
     data: {
@@ -156,12 +164,43 @@ export function yearlyChart(canvasId, rows) {
         borderRadius: 5,
       }],
     },
-    options: baseOptions((ctx) => {
-      const row = rows[ctx.dataIndex];
-      return [`매출 ${WON(row.sales)}`, `영업 ${row.openDays}일`,
-              `일평균 ${WON(row.avgDaily)}`, `결제 ${COUNT(row.orders)}`];
-    }),
+    options,
+    plugins: [barValueLabels(shortWon)],
   });
+}
+
+/** 막대 위에 값을 적는 작은 플러그인 — 이것 하나 때문에 datalabels 플러그인을 들이지 않는다. */
+function barValueLabels(format) {
+  return {
+    id: 'barValueLabels',
+    afterDatasetsDraw(chart) {
+      const { ctx } = chart;
+      const meta = chart.getDatasetMeta(0);
+      const values = chart.data.datasets[0].data;
+      ctx.save();
+      // 휴대폰 폭에서는 막대가 좁아 라벨끼리 닿는다 — 한 단계 줄인다
+      ctx.font = `600 ${chart.width < 480 ? 10 : 11}px sans-serif`;
+      ctx.fillStyle = COLORS.secondary;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      // 막대 한 칸보다 라벨이 길면 옆 라벨과 닿는다 — 공백에서 두 줄로 나눈다
+      // ('11억 1천7백만원' → '11억' / '1천7백만원'). 휴대폰 폭에서 생긴다.
+      const slot = chart.chartArea.width / Math.max(values.length, 1);
+      const lineHeight = 13;
+      // 최종 위치(true)를 쓴다 — 막대가 자라는 애니메이션 도중에도 라벨은 제자리에 있다
+      meta.data.forEach((bar, i) => {
+        const { x, y } = bar.getProps(['x', 'y'], true);
+        const text = format(values[i]);
+        const lines = ctx.measureText(text).width > slot - 4 && text.includes(' ')
+          ? text.split(' ')
+          : [text];
+        lines.forEach((line, row) => {
+          ctx.fillText(line, x, y - 4 - (lines.length - 1 - row) * lineHeight);
+        });
+      });
+      ctx.restore();
+    },
+  };
 }
 
 export function destroyAll() {

@@ -1,7 +1,7 @@
 /** 메뉴별 매출 TOP (FN-250). */
 
 import { api } from '../api.js';
-import { QTY, shortWon } from '../format.js';
+import { QTY, WON, shortWon } from '../format.js';
 import { createWidget } from './widget.js';
 
 let sortBy = 'sales';
@@ -21,7 +21,7 @@ export function menuWidget() {
             <div class="menu-meta">${escapeHtml(row.category ?? '')} · ${QTY(row.quantity)} · ${row.share}%</div>
             <div class="menu-bar"><span style="width:${(row.sales / max * 100).toFixed(1)}%"></span></div>
           </div>
-          <div class="menu-amount">${shortWon(row.sales)}</div>
+          <div class="menu-amount" title="${WON(row.sales)}">${shortWon(row.sales)}</div>
         </div>`).join('')}</div>`;
     },
     isEmpty: (data) => !data.data.length,

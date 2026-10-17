@@ -5,11 +5,26 @@
 
 export const WON = (n) => (n == null ? '—' : `${n.toLocaleString('ko-KR')}원`);
 
-/** 축약 표기: 12,340,000원 → 1,234만원 */
+/**
+ * 금액 표기 — 말로 읽는 단위 (docs/02 8.4). 숫자 자릿수를 세지 않고 바로 읽히게 한다 (사용자 요청).
+ * 1천만원 이상은 백만원 단위로 반올림한다. 정확한 값은 툴팁(title)에 둔다.
+ *   1,116,960,000원 → 11억 1천7백만원 / 1,000,000,000원 → 10억원
+ *      63,220,000원 → 6천3백만원     /     3,456,000원 → 346만원
+ */
 export function shortWon(n) {
   if (n == null) return '—';
-  if (Math.abs(n) >= 100_000_000) return `${(n / 100_000_000).toFixed(1)}억원`;
-  if (Math.abs(n) >= 10_000) return `${Math.round(n / 10_000).toLocaleString('ko-KR')}만원`;
+  const sign = n < 0 ? '-' : '';
+  const abs = Math.abs(n);
+  const millions = Math.round(abs / 1_000_000);
+  if (millions >= 10) {
+    const eok = Math.floor(millions / 100);
+    const cheon = Math.floor((millions % 100) / 10);
+    const baek = millions % 10;
+    const man = `${cheon ? `${cheon}천` : ''}${baek ? `${baek}백` : ''}`;
+    if (!man) return `${sign}${eok}억원`;
+    return `${sign}${eok ? `${eok}억 ` : ''}${man}만원`;
+  }
+  if (abs >= 10_000) return `${sign}${Math.round(abs / 10_000).toLocaleString('ko-KR')}만원`;
   return WON(n);
 }
 
